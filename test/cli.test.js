@@ -200,6 +200,30 @@ test('invalid AGENTS.md is rejected before init mutates the repository', () => {
   assert.equal(existsSync(join(cwd, '.cnad')), false)
 })
 
+test('incomplete CNAD integration markers are rejected before init mutates the repository', () => {
+  const cwd = tempRepo()
+  writeFileSync(join(cwd, 'AGENTS.md'), '# Existing instructions\n\n<!-- cnad:start -->\n')
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /incomplete CNAD integration marker/)
+  assert.equal(existsSync(join(cwd, '.cnad')), false)
+})
+
+test('appending CNAD integration preserves existing AGENTS.md bytes', () => {
+  const cwd = tempRepo()
+  const agentsPath = join(cwd, 'AGENTS.md')
+  const original = Buffer.from([0xff, 0xfe, 0x41, 0x0a])
+  writeFileSync(agentsPath, original)
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 0, result.stderr)
+
+  const updated = readFileSync(agentsPath)
+  assert.deepEqual(updated.subarray(0, original.length), original)
+  assert.notEqual(updated.indexOf(Buffer.from('<!-- cnad:start -->')), -1)
+})
+
 test('invalid project guidance is rejected before init mutates managed files', () => {
   const cwd = tempRepo()
   mkdirSync(join(cwd, '.cnad'), { recursive: true })
@@ -223,6 +247,24 @@ test('missing project guidance parent is preflighted before init mutations', { s
     assert.equal(result.status, 1)
     assert.equal(existsSync(join(cnad, 'project.md')), false)
     assert.equal(existsSync(join(cnad, 'version.json')), false)
+    assert.equal(existsSync(join(cwd, 'AGENTS.md')), false)
+  } finally {
+    chmodSync(cnad, 0o755)
+  }
+})
+
+test('manifest parent is preflighted before init writes managed templates', { skip: process.getuid?.() === 0 }, () => {
+  const cwd = tempRepo()
+  const cnad = join(cwd, '.cnad')
+  const method = join(cnad, 'method')
+  mkdirSync(method, { recursive: true })
+  writeFileSync(join(cnad, 'project.md'), '# Existing project guidance\n')
+  chmodSync(cnad, 0o555)
+  try {
+    const result = run(cwd, 'init')
+    assert.equal(result.status, 1)
+    assert.equal(existsSync(join(cnad, 'version.json')), false)
+    assert.equal(existsSync(join(method, 'review.md')), false)
     assert.equal(existsSync(join(cwd, 'AGENTS.md')), false)
   } finally {
     chmodSync(cnad, 0o755)
