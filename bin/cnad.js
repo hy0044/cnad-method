@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -26,11 +26,8 @@ function walkFiles(root) {
   const files = []
   for (const entry of readdirSync(root)) {
     const full = join(root, entry)
-    if (statSync(full).isDirectory()) {
-      files.push(...walkFiles(full))
-    } else {
-      files.push(full)
-    }
+    if (statSync(full).isDirectory()) files.push(...walkFiles(full))
+    else files.push(full)
   }
   return files
 }
@@ -39,7 +36,7 @@ function templateEntries() {
   return walkFiles(templatesRoot).map((source) => {
     const rel = relative(templatesRoot, source).replaceAll('\\', '/')
     const content = readFileSync(source, 'utf8')
-    return { rel, source, content, hash: hash(content) }
+    return { rel, content, hash: hash(content) }
   })
 }
 
@@ -52,9 +49,7 @@ function ensureParent(path) {
 }
 
 function readManifest() {
-  if (!existsSync(manifestPath)) {
-    throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
-  }
+  if (!existsSync(manifestPath)) throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
   return JSON.parse(readFileSync(manifestPath, 'utf8'))
 }
 
@@ -79,9 +74,7 @@ function appendAgentsIntegration() {
 }
 
 function init() {
-  if (existsSync(manifestPath)) {
-    throw new Error('CNAD is already initialized in this repository.')
-  }
+  if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
 
   const entries = templateEntries()
   mkdirSync(methodRoot, { recursive: true })
@@ -89,9 +82,7 @@ function init() {
   for (const entry of entries) {
     const target = managedTarget(entry.rel)
     ensureParent(target)
-    if (existsSync(target)) {
-      throw new Error(`Refusing to overwrite existing file: ${relative(cwd, target)}`)
-    }
+    if (existsSync(target)) throw new Error(`Refusing to overwrite existing file: ${relative(cwd, target)}`)
     writeFileSync(target, entry.content)
   }
 
@@ -119,10 +110,7 @@ function inspectUpdate() {
       conflicts.push(`${managedPath} is missing`)
       continue
     }
-    const currentHash = hash(readFileSync(target, 'utf8'))
-    if (currentHash !== recordedHash) {
-      conflicts.push(`${managedPath} has local changes`)
-    }
+    if (hash(readFileSync(target, 'utf8')) !== recordedHash) conflicts.push(`${managedPath} has local changes`)
   }
 
   const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
@@ -170,10 +158,7 @@ function update() {
   for (const managedPath of Object.keys(manifest.files ?? {})) {
     if (!nextPaths.has(managedPath)) {
       const target = join(cnadRoot, managedPath)
-      if (existsSync(target)) {
-        const { unlinkSync } = await import('node:fs')
-        unlinkSync(target)
-      }
+      if (existsSync(target)) unlinkSync(target)
     }
   }
 
@@ -192,38 +177,21 @@ function usage() {
   console.log(`CNAD ${packageVersion}\n\nUsage:\n  cnad init\n  cnad update --check\n  cnad update\n`)
 }
 
-async function main() {
+function main() {
   const [, , command, option] = process.argv
 
-  if (!command || command === '--help' || command === '-h') {
-    usage()
-    return
-  }
-
-  if (command === '--version' || command === '-v') {
-    console.log(packageVersion)
-    return
-  }
-
-  if (command === 'init') {
-    init()
-    return
-  }
-
-  if (command === 'update' && option === '--check') {
-    checkUpdate()
-    return
-  }
-
-  if (command === 'update' && !option) {
-    await update()
-    return
-  }
+  if (!command || command === '--help' || command === '-h') return usage()
+  if (command === '--version' || command === '-v') return console.log(packageVersion)
+  if (command === 'init') return init()
+  if (command === 'update' && option === '--check') return checkUpdate()
+  if (command === 'update' && !option) return update()
 
   throw new Error(`Unknown command: ${[command, option].filter(Boolean).join(' ')}`)
 }
 
-main().catch((error) => {
+try {
+  main()
+} catch (error) {
   console.error(`cnad: ${error.message}`)
   process.exitCode = 1
-})
+}
