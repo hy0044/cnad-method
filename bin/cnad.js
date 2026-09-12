@@ -336,45 +336,60 @@ function backupPathFor(target, index) {
   }
 }
 
-function rollbackStagedRemovals(staged) {
-  let rollbackError = null
+function rollbackMutations(staged) {
+  const rollbackErrors = []
+
+  for (const { target, writeAttempted } of [...staged].reverse()) {
+    if (!writeAttempted) continue
+    try {
+      if (existsSync(target)) unlinkSync(target)
+    } catch (error) {
+      rollbackErrors.push(error)
+    }
+  }
+
   for (const { target, backup } of [...staged].reverse()) {
+    if (!backup) continue
     try {
       if (existsSync(backup) && !existsSync(target)) renameSync(backup, target)
     } catch (error) {
-      rollbackError ??= error
+      rollbackErrors.push(error)
     }
   }
-  if (rollbackError) {
-    throw new Error(`Failed to roll back staged managed-file removals: ${rollbackError.message}`)
+
+  if (rollbackErrors.length > 0) {
+    throw new Error(`Failed to roll back CNAD update: ${rollbackErrors.map((error) => error.message).join('; ')}`)
   }
 }
 
-function stageObsoleteRemovals(manifest, entries) {
-  const staged = []
+function stageMutation(staged, target) {
+  assertSafeRepositoryPath(target)
+  const backup = existsSync(target) ? backupPathFor(target, staged.length) : null
+  if (backup) renameSync(target, backup)
+  const mutation = { target, backup, writeAttempted: false }
+  staged.push(mutation)
+  return mutation
+}
+
+function writeStagedMutation(mutation, content) {
+  ensureParent(mutation.target)
+  assertSafeRepositoryPath(mutation.target)
+  mutation.writeAttempted = true
+  writeFileSync(mutation.target, content)
+}
+
+function throwWithRollback(error, staged) {
   try {
-    for (const [index, managedPath] of obsoleteManagedPaths(manifest, entries).entries()) {
-      const target = join(cnadRoot, managedPath)
-      assertSafeRepositoryPath(target)
-      if (!existsSync(target)) continue
-      const backup = backupPathFor(target, index)
-      renameSync(target, backup)
-      staged.push({ target, backup })
-    }
-    return staged
-  } catch (error) {
-    try {
-      rollbackStagedRemovals(staged)
-    } catch (rollbackError) {
-      throw new Error(`${error.message}; ${rollbackError.message}`)
-    }
-    throw error
+    rollbackMutations(staged)
+  } catch (rollbackError) {
+    throw new Error(`${error.message}; ${rollbackError.message}`, { cause: error })
   }
+  throw error
 }
 
-function discardStagedRemovals(staged) {
+function discardBackups(staged) {
   for (const { backup } of staged) {
-    if (existsSync(backup)) unlinkSync(backup)
+    if (backup && existsSync(backup)) unlinkSync(backup)
   }
 }
 
@@ -405,27 +420,28 @@ function update() {
   }
 
   preflightUpdateMutations(manifest, entries)
-  const stagedRemovals = stageObsoleteRemovals(manifest, entries)
+  const staged = []
 
   try {
+    for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
+      const target = join(cnadRoot, managedPath)
+      if (existsSync(target)) stageMutation(staged, target)
+    }
+
     for (const entry of entriesRequiringWrite(manifest, entries)) {
       const target = managedTarget(entry.rel)
-      ensureParent(target)
-      assertSafeRepositoryPath(target)
-      writeFileSync(target, entry.content)
+      const mutation = stageMutation(staged, target)
+      writeStagedMutation(mutation, entry.content)
     }
 
-    writeManifest(entries)
+    const manifestMutation = stageMutation(staged, manifestPath)
+    const files = Object.fromEntries(entries.map(({ rel, hash: fileHash }) => [`method/${rel}`, fileHash]))
+    writeStagedMutation(manifestMutation, `${JSON.stringify({ version: packageVersion, files }, null, 2)}\n`)
   } catch (error) {
-    try {
-      rollbackStagedRemovals(stagedRemovals)
-    } catch (rollbackError) {
-      throw new Error(`${error.message}; ${rollbackError.message}`)
-    }
-    throw error
+    throwWithRollback(error, staged)
   }
 
-  discardStagedRemovals(stagedRemovals)
+  discardBackups(staged)
   console.log(`CNAD updated to ${packageVersion}.`)
   console.log('Project-owned files were not modified.')
 }
