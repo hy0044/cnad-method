@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { linkSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -125,6 +125,27 @@ test('symlinked managed files are rejected before their targets can be overwritt
   assert.equal(update.status, 1)
   assert.match(update.stderr, /Refusing symlinked repository path/)
   assert.equal(readFileSync(externalPath, 'utf8'), originalContent)
+})
+
+test('hard-linked managed files are rejected before their peers can be overwritten', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const managed = join(cwd, '.cnad', 'method', 'review.md')
+  const originalContent = readFileSync(managed, 'utf8')
+  const peerPath = join(cwd, 'project-owned.md')
+  writeFileSync(peerPath, originalContent)
+  unlinkSync(managed)
+  linkSync(peerPath, managed)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /Refusing hard-linked repository file/)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 1)
+  assert.match(update.stderr, /Refusing hard-linked repository file/)
+  assert.equal(readFileSync(peerPath, 'utf8'), originalContent)
 })
 
 test('symlinked AGENTS.md is rejected before init can modify its target', () => {
