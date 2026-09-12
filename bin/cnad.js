@@ -142,7 +142,10 @@ function validateManifest(manifest) {
 
 function readManifest() {
   assertSafeRepositoryPath(manifestPath)
-  if (!existsSync(manifestPath)) throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
+  const info = lstatIfExists(manifestPath)
+  if (!info) throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
+  if (!info.isFile()) throw new Error('Invalid CNAD manifest: `.cnad/version.json` must be a regular file.')
+  if (info.nlink > 1) throw new Error('Invalid CNAD manifest: `.cnad/version.json` must not have multiple hard links.')
   return validateManifest(JSON.parse(readFileSync(manifestPath, 'utf8')))
 }
 
@@ -336,15 +339,15 @@ function usage() {
 }
 
 function main() {
-  const [, , command, option] = process.argv
+  const [, , command, ...args] = process.argv
 
   if (!command || command === '--help' || command === '-h') return usage()
-  if (command === '--version' || command === '-v') return console.log(packageVersion)
-  if (command === 'init') return init()
-  if (command === 'update' && option === '--check') return checkUpdate()
-  if (command === 'update' && !option) return update()
+  if ((command === '--version' || command === '-v') && args.length === 0) return console.log(packageVersion)
+  if (command === 'init' && args.length === 0) return init()
+  if (command === 'update' && args.length === 1 && args[0] === '--check') return checkUpdate()
+  if (command === 'update' && args.length === 0) return update()
 
-  throw new Error(`Unknown command: ${[command, option].filter(Boolean).join(' ')}`)
+  throw new Error(`Unknown command: ${[command, ...args].filter(Boolean).join(' ')}`)
 }
 
 try {
