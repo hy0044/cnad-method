@@ -210,6 +210,19 @@ test('incomplete CNAD integration markers are rejected before init mutates the r
   assert.equal(existsSync(join(cwd, '.cnad')), false)
 })
 
+test('complete CRLF CNAD integration is recognized without rewriting AGENTS.md', () => {
+  const cwd = tempRepo()
+  const agentsPath = join(cwd, 'AGENTS.md')
+  const original = Buffer.from(
+    '# Existing instructions\r\n\r\n<!-- cnad:start -->\r\n## CNAD\r\n\r\nFollow the CNAD method in `.cnad/method/`.\r\nProject-specific CNAD guidance belongs in `.cnad/project.md`.\r\n<!-- cnad:end -->\r\n',
+  )
+  writeFileSync(agentsPath, original)
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(readFileSync(agentsPath), original)
+})
+
 test('appending CNAD integration preserves existing AGENTS.md bytes', () => {
   const cwd = tempRepo()
   const agentsPath = join(cwd, 'AGENTS.md')
