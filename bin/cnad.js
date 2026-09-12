@@ -91,10 +91,15 @@ function nearestExistingParent(target) {
   return current
 }
 
+function normalizeAgentLineEndings(bytes) {
+  return Buffer.from(bytes.toString('latin1').replace(/\r\n?/g, '\n'), 'latin1')
+}
+
 function inspectAgentsIntegration(bytes) {
-  const hasBlock = bytes.indexOf(integrationBlockBytes) !== -1
-  const hasStart = bytes.indexOf(integrationStartBytes) !== -1
-  const hasEnd = bytes.indexOf(integrationEndBytes) !== -1
+  const normalized = normalizeAgentLineEndings(bytes)
+  const hasBlock = normalized.indexOf(integrationBlockBytes) !== -1
+  const hasStart = normalized.indexOf(integrationStartBytes) !== -1
+  const hasEnd = normalized.indexOf(integrationEndBytes) !== -1
 
   if (hasBlock) return 'complete'
   if (hasStart || hasEnd) {
