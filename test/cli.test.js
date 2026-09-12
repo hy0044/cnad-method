@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -170,4 +170,41 @@ test('invalid AGENTS.md is rejected before init mutates the repository', () => {
   assert.equal(result.status, 1)
   assert.match(result.stderr, /AGENTS\.md because it is not a regular file/)
   assert.equal(existsSync(join(cwd, '.cnad')), false)
+})
+
+test('invalid project guidance is rejected before init mutates managed files', () => {
+  const cwd = tempRepo()
+  mkdirSync(join(cwd, '.cnad'), { recursive: true })
+  mkdirSync(join(cwd, '.cnad', 'project.md'))
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /\.cnad\/project\.md because it is not a regular file/)
+  assert.equal(existsSync(join(cwd, '.cnad', 'version.json')), false)
+  assert.equal(existsSync(join(cwd, '.cnad', 'method')), false)
+})
+
+test('update preflight prevents partial removal when a later managed write is not writable', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const obsoletePath = join(cwd, '.cnad', 'method', 'obsolete.md')
+  const obsoleteContent = 'obsolete\n'
+  writeFileSync(obsoletePath, obsoleteContent)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files['method/obsolete.md'] = normalizedHash(obsoleteContent)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  const managed = join(cwd, '.cnad', 'method', 'review.md')
+  chmodSync(managed, 0o444)
+  try {
+    const update = run(cwd, 'update')
+    assert.equal(update.status, 1)
+    assert.equal(existsSync(obsoletePath), true)
+    assert.equal(readFileSync(obsoletePath, 'utf8'), obsoleteContent)
+  } finally {
+    chmodSync(managed, 0o644)
+  }
 })
