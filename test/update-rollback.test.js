@@ -125,6 +125,37 @@ syncBuiltinESMExports()
   )
 })
 
+test('update preflights an existing managed file parent before mutation', {
+  skip: process.platform === 'win32' || process.getuid?.() === 0,
+}, () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const methodDir = join(cwd, '.cnad', 'method')
+  const managedPath = join(methodDir, 'review.md')
+  const managedContent = '# Old review template\n'
+  writeFileSync(managedPath, managedContent)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.version = '0.0.0'
+  manifest.files['method/review.md'] = normalizedHash(managedContent)
+  const manifestContent = `${JSON.stringify(manifest, null, 2)}\n`
+  writeFileSync(manifestPath, manifestContent)
+
+  chmodSync(methodDir, 0o555)
+  try {
+    const update = run(cwd, 'update')
+    assert.equal(update.status, 1)
+    assert.equal(readFileSync(managedPath, 'utf8'), managedContent)
+    assert.equal(readFileSync(manifestPath, 'utf8'), manifestContent)
+    assert.equal(readdirSync(methodDir).some((name) => name.includes('.cnad-update-backup-')), false)
+    assert.equal(readdirSync(join(cwd, '.cnad')).some((name) => name.includes('.cnad-update-backup-')), false)
+  } finally {
+    chmodSync(methodDir, 0o755)
+  }
+})
+
 test('successful update preserves modes of existing managed files and manifest', {
   skip: process.platform === 'win32',
 }, () => {
@@ -143,11 +174,17 @@ test('successful update preserves modes of existing managed files and manifest',
 
   chmodSync(managedPath, 0o600)
   chmodSync(manifestPath, 0o640)
+  const managedOwnership = statSync(managedPath)
+  const manifestOwnership = statSync(manifestPath)
 
   const update = run(cwd, 'update')
   assert.equal(update.status, 0, update.stderr)
   assert.equal(statSync(managedPath).mode & 0o777, 0o600)
   assert.equal(statSync(manifestPath).mode & 0o777, 0o640)
+  assert.equal(statSync(managedPath).uid, managedOwnership.uid)
+  assert.equal(statSync(managedPath).gid, managedOwnership.gid)
+  assert.equal(statSync(manifestPath).uid, manifestOwnership.uid)
+  assert.equal(statSync(manifestPath).gid, manifestOwnership.gid)
   assert.equal(
     readdirSync(join(cwd, '.cnad', 'method')).some((name) => name.includes('.cnad-update-backup-')) ||
       readdirSync(join(cwd, '.cnad')).some((name) => name.includes('.cnad-update-backup-')),

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { accessSync, appendFileSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, chownSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -305,6 +305,7 @@ function obsoleteManagedPaths(manifest, entries) {
 function preflightUpdateMutations(manifest, entries) {
   assertSafeRepositoryPath(manifestPath)
   accessSync(manifestPath, constants.R_OK | constants.W_OK)
+  accessSync(dirname(manifestPath), constants.W_OK)
 
   for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
     const target = join(cnadRoot, managedPath)
@@ -319,6 +320,7 @@ function preflightUpdateMutations(manifest, entries) {
     if (info) {
       if (!info.isFile()) throw new Error(`Refusing managed target because it is not a regular file: ${relative(cwd, target)}`)
       accessSync(target, constants.W_OK)
+      accessSync(dirname(target), constants.W_OK)
     } else {
       accessSync(nearestExistingParent(target), constants.W_OK)
     }
@@ -367,7 +369,7 @@ function stageMutation(staged, target) {
   const info = lstatIfExists(target)
   const backup = info ? backupPathFor(target, staged.length) : null
   if (backup) renameSync(target, backup)
-  const mutation = { target, backup, mode: info?.mode, writeAttempted: false }
+  const mutation = { target, backup, mode: info?.mode, uid: info?.uid, gid: info?.gid, writeAttempted: false }
   staged.push(mutation)
   return mutation
 }
@@ -377,7 +379,10 @@ function writeStagedMutation(mutation, content) {
   assertSafeRepositoryPath(mutation.target)
   mutation.writeAttempted = true
   writeFileSync(mutation.target, content)
-  if (mutation.mode !== undefined) chmodSync(mutation.target, mutation.mode)
+  if (mutation.mode !== undefined) {
+    chownSync(mutation.target, mutation.uid, mutation.gid)
+    chmodSync(mutation.target, mutation.mode)
+  }
 }
 
 function throwWithRollback(error, staged) {
