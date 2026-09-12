@@ -184,6 +184,16 @@ test('invalid project guidance is rejected before init mutates managed files', (
   assert.equal(existsSync(join(cwd, '.cnad', 'method')), false)
 })
 
+test('missing project guidance parent is preflighted before init mutations', () => {
+  const cwd = tempRepo()
+  writeFileSync(join(cwd, '.cnad'), 'not a directory\n')
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /project guidance parent because it is not a directory/)
+  assert.equal(existsSync(join(cwd, 'AGENTS.md')), false)
+})
+
 test('non-regular managed targets are rejected before they can block or be read', () => {
   const cwd = tempRepo()
   assert.equal(run(cwd, 'init').status, 0)
