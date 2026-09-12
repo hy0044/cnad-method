@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -297,17 +297,19 @@ function entriesRequiringWrite(manifest, entries) {
   return entries.filter((entry) => manifest.files?.[`method/${entry.rel}`] !== entry.hash)
 }
 
+function obsoleteManagedPaths(manifest, entries) {
+  const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
+  return Object.keys(manifest.files ?? {}).filter((managedPath) => !nextPaths.has(managedPath))
+}
+
 function preflightUpdateMutations(manifest, entries) {
   assertSafeRepositoryPath(manifestPath)
   accessSync(manifestPath, constants.R_OK | constants.W_OK)
 
-  const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
-  for (const managedPath of Object.keys(manifest.files ?? {})) {
-    if (!nextPaths.has(managedPath)) {
-      const target = join(cnadRoot, managedPath)
-      assertSafeRepositoryPath(target)
-      accessSync(dirname(target), constants.W_OK)
-    }
+  for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
+    const target = join(cnadRoot, managedPath)
+    assertSafeRepositoryPath(target)
+    accessSync(dirname(target), constants.W_OK)
   }
 
   for (const entry of entriesRequiringWrite(manifest, entries)) {
@@ -320,6 +322,59 @@ function preflightUpdateMutations(manifest, entries) {
     } else {
       accessSync(nearestExistingParent(target), constants.W_OK)
     }
+  }
+}
+
+function backupPathFor(target, index) {
+  let attempt = 0
+  while (true) {
+    const suffix = attempt === 0 ? '' : `-${attempt}`
+    const backup = `${target}.cnad-update-backup-${process.pid}-${index}${suffix}`
+    assertSafeRepositoryPath(backup)
+    if (!existsSync(backup)) return backup
+    attempt += 1
+  }
+}
+
+function rollbackStagedRemovals(staged) {
+  let rollbackError = null
+  for (const { target, backup } of [...staged].reverse()) {
+    try {
+      if (existsSync(backup) && !existsSync(target)) renameSync(backup, target)
+    } catch (error) {
+      rollbackError ??= error
+    }
+  }
+  if (rollbackError) {
+    throw new Error(`Failed to roll back staged managed-file removals: ${rollbackError.message}`)
+  }
+}
+
+function stageObsoleteRemovals(manifest, entries) {
+  const staged = []
+  try {
+    for (const [index, managedPath] of obsoleteManagedPaths(manifest, entries).entries()) {
+      const target = join(cnadRoot, managedPath)
+      assertSafeRepositoryPath(target)
+      if (!existsSync(target)) continue
+      const backup = backupPathFor(target, index)
+      renameSync(target, backup)
+      staged.push({ target, backup })
+    }
+    return staged
+  } catch (error) {
+    try {
+      rollbackStagedRemovals(staged)
+    } catch (rollbackError) {
+      throw new Error(`${error.message}; ${rollbackError.message}`)
+    }
+    throw error
+  }
+}
+
+function discardStagedRemovals(staged) {
+  for (const { backup } of staged) {
+    if (existsSync(backup)) unlinkSync(backup)
   }
 }
 
@@ -350,24 +405,27 @@ function update() {
   }
 
   preflightUpdateMutations(manifest, entries)
+  const stagedRemovals = stageObsoleteRemovals(manifest, entries)
 
-  const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
-  for (const managedPath of Object.keys(manifest.files ?? {})) {
-    if (!nextPaths.has(managedPath)) {
-      const target = join(cnadRoot, managedPath)
+  try {
+    for (const entry of entriesRequiringWrite(manifest, entries)) {
+      const target = managedTarget(entry.rel)
+      ensureParent(target)
       assertSafeRepositoryPath(target)
-      if (existsSync(target)) unlinkSync(target)
+      writeFileSync(target, entry.content)
     }
+
+    writeManifest(entries)
+  } catch (error) {
+    try {
+      rollbackStagedRemovals(stagedRemovals)
+    } catch (rollbackError) {
+      throw new Error(`${error.message}; ${rollbackError.message}`)
+    }
+    throw error
   }
 
-  for (const entry of entriesRequiringWrite(manifest, entries)) {
-    const target = managedTarget(entry.rel)
-    ensureParent(target)
-    assertSafeRepositoryPath(target)
-    writeFileSync(target, entry.content)
-  }
-
-  writeManifest(entries)
+  discardStagedRemovals(stagedRemovals)
   console.log(`CNAD updated to ${packageVersion}.`)
   console.log('Project-owned files were not modified.')
 }
