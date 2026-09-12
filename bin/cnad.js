@@ -210,8 +210,17 @@ function inspectUpdate() {
   for (const [managedPath, recordedHash] of Object.entries(manifest.files ?? {})) {
     const target = join(cnadRoot, managedPath)
     assertSafeRepositoryPath(target)
-    if (!existsSync(target)) {
+    const info = lstatIfExists(target)
+    if (!info) {
       conflicts.push(`${managedPath} is missing`)
+      continue
+    }
+    if (!info.isFile()) {
+      conflicts.push(`${managedPath} is not a regular file`)
+      continue
+    }
+    if (info.nlink > 1) {
+      conflicts.push(`${managedPath} has multiple hard links`)
       continue
     }
     if (hash(readFileSync(target, 'utf8')) !== recordedHash) conflicts.push(`${managedPath} has local changes`)
