@@ -380,7 +380,7 @@ function writeStagedMutation(mutation, content) {
   mutation.writeAttempted = true
   writeFileSync(mutation.target, content)
   if (mutation.mode !== undefined) {
-    chownSync(mutation.target, mutation.uid, mutation.gid)
+    if (process.platform !== 'win32') chownSync(mutation.target, mutation.uid, mutation.gid)
     chmodSync(mutation.target, mutation.mode)
   }
 }
