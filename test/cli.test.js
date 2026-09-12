@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -103,4 +103,40 @@ test('manifest traversal paths are rejected before project-owned files can be to
   assert.equal(update.status, 1)
   assert.match(update.stderr, /Invalid CNAD manifest path/)
   assert.equal(readFileSync(protectedPath, 'utf8'), protectedContent)
+})
+
+test('symlinked managed files are rejected before their targets can be overwritten', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const managed = join(cwd, '.cnad', 'method', 'review.md')
+  const originalContent = readFileSync(managed, 'utf8')
+  const externalDir = tempRepo()
+  const externalPath = join(externalDir, 'protected.md')
+  writeFileSync(externalPath, originalContent)
+  unlinkSync(managed)
+  symlinkSync(externalPath, managed)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /Refusing symlinked repository path/)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 1)
+  assert.match(update.stderr, /Refusing symlinked repository path/)
+  assert.equal(readFileSync(externalPath, 'utf8'), originalContent)
+})
+
+test('symlinked AGENTS.md is rejected before init can modify its target', () => {
+  const cwd = tempRepo()
+  const externalDir = tempRepo()
+  const externalPath = join(externalDir, 'AGENTS.md')
+  const originalContent = '# External instructions\n'
+  writeFileSync(externalPath, originalContent)
+  symlinkSync(externalPath, join(cwd, 'AGENTS.md'))
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /Refusing symlinked repository path/)
+  assert.equal(readFileSync(externalPath, 'utf8'), originalContent)
 })
