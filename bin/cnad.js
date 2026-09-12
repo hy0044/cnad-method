@@ -18,8 +18,12 @@ const agentsPath = join(cwd, 'AGENTS.md')
 
 const integrationBlock = `<!-- cnad:start -->\n## CNAD\n\nFollow the CNAD method in \`.cnad/method/\`.\nProject-specific CNAD guidance belongs in \`.cnad/project.md\`.\n<!-- cnad:end -->\n`
 
+function normalizeText(content) {
+  return content.replace(/\r\n?/g, '\n')
+}
+
 function hash(content) {
-  return createHash('sha256').update(content).digest('hex')
+  return createHash('sha256').update(normalizeText(content)).digest('hex')
 }
 
 function walkFiles(root) {
@@ -48,9 +52,30 @@ function ensureParent(path) {
   mkdirSync(dirname(path), { recursive: true })
 }
 
+function isValidManagedPath(managedPath) {
+  if (typeof managedPath !== 'string' || managedPath.includes('\\')) return false
+  const parts = managedPath.split('/')
+  return parts.length > 1 && parts[0] === 'method' && parts.every((part) => part !== '' && part !== '.' && part !== '..')
+}
+
+function validateManifest(manifest) {
+  if (manifest.files == null) return manifest
+  if (typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
+    throw new Error('Invalid CNAD manifest: `files` must be an object.')
+  }
+
+  for (const managedPath of Object.keys(manifest.files)) {
+    if (!isValidManagedPath(managedPath)) {
+      throw new Error(`Invalid CNAD manifest path: ${managedPath}`)
+    }
+  }
+
+  return manifest
+}
+
 function readManifest() {
   if (!existsSync(manifestPath)) throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
-  return JSON.parse(readFileSync(manifestPath, 'utf8'))
+  return validateManifest(JSON.parse(readFileSync(manifestPath, 'utf8')))
 }
 
 function writeManifest(entries) {
