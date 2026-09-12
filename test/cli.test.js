@@ -223,6 +223,23 @@ test('complete CRLF CNAD integration is recognized without rewriting AGENTS.md',
   assert.deepEqual(readFileSync(agentsPath), original)
 })
 
+test('complete CNAD integration does not require AGENTS.md write access', { skip: process.getuid?.() === 0 }, () => {
+  const cwd = tempRepo()
+  const agentsPath = join(cwd, 'AGENTS.md')
+  const original = Buffer.from(
+    '# Existing instructions\n\n<!-- cnad:start -->\n## CNAD\n\nFollow the CNAD method in `.cnad/method/`.\nProject-specific CNAD guidance belongs in `.cnad/project.md`.\n<!-- cnad:end -->\n',
+  )
+  writeFileSync(agentsPath, original)
+  chmodSync(agentsPath, 0o444)
+  try {
+    const result = run(cwd, 'init')
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(readFileSync(agentsPath), original)
+  } finally {
+    chmodSync(agentsPath, 0o644)
+  }
+})
+
 test('appending CNAD integration preserves existing AGENTS.md bytes', () => {
   const cwd = tempRepo()
   const agentsPath = join(cwd, 'AGENTS.md')
@@ -299,6 +316,33 @@ test('non-regular managed targets are rejected before they can block or be read'
   const update = run(cwd, 'update')
   assert.equal(update.status, 1)
   assert.match(update.stderr, /method\/review\.md is not a regular file/)
+})
+
+test('update skips write checks and rewrites for clean unchanged managed files', { skip: process.getuid?.() === 0 }, () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const methodDir = join(cwd, '.cnad', 'method')
+  const unchangedPath = join(methodDir, 'review.md')
+  const unchangedContent = readFileSync(unchangedPath, 'utf8')
+  chmodSync(unchangedPath, 0o444)
+
+  const changedPath = join(methodDir, 'workflow.md')
+  const oldContent = '# Old workflow\n'
+  writeFileSync(changedPath, oldContent)
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files['method/workflow.md'] = normalizedHash(oldContent)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  try {
+    const update = run(cwd, 'update')
+    assert.equal(update.status, 0, update.stderr)
+    assert.equal(readFileSync(unchangedPath, 'utf8'), unchangedContent)
+    assert.notEqual(readFileSync(changedPath, 'utf8'), oldContent)
+  } finally {
+    chmodSync(unchangedPath, 0o644)
+  }
 })
 
 test('update failure before mutation leaves obsolete managed files untouched', () => {
