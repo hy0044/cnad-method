@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -184,7 +184,24 @@ test('invalid project guidance is rejected before init mutates managed files', (
   assert.equal(existsSync(join(cwd, '.cnad', 'method')), false)
 })
 
-test('update preflight prevents partial removal when a later managed write is not writable', () => {
+test('non-regular managed targets are rejected before they can block or be read', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const managed = join(cwd, '.cnad', 'method', 'review.md')
+  unlinkSync(managed)
+  mkdirSync(managed)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 2)
+  assert.match(check.stdout, /method\/review\.md is not a regular file/)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 1)
+  assert.match(update.stderr, /method\/review\.md is not a regular file/)
+})
+
+test('update failure before mutation leaves obsolete managed files untouched', () => {
   const cwd = tempRepo()
   assert.equal(run(cwd, 'init').status, 0)
 
@@ -198,13 +215,11 @@ test('update preflight prevents partial removal when a later managed write is no
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 
   const managed = join(cwd, '.cnad', 'method', 'review.md')
-  chmodSync(managed, 0o444)
-  try {
-    const update = run(cwd, 'update')
-    assert.equal(update.status, 1)
-    assert.equal(existsSync(obsoletePath), true)
-    assert.equal(readFileSync(obsoletePath, 'utf8'), obsoleteContent)
-  } finally {
-    chmodSync(managed, 0o644)
-  }
+  unlinkSync(managed)
+  mkdirSync(managed)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 1)
+  assert.equal(existsSync(obsoletePath), true)
+  assert.equal(readFileSync(obsoletePath, 'utf8'), obsoleteContent)
 })
