@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -184,14 +184,21 @@ test('invalid project guidance is rejected before init mutates managed files', (
   assert.equal(existsSync(join(cwd, '.cnad', 'method')), false)
 })
 
-test('missing project guidance parent is preflighted before init mutations', () => {
+test('missing project guidance parent is preflighted before init mutations', { skip: process.getuid?.() === 0 }, () => {
   const cwd = tempRepo()
-  writeFileSync(join(cwd, '.cnad'), 'not a directory\n')
-
-  const result = run(cwd, 'init')
-  assert.equal(result.status, 1)
-  assert.match(result.stderr, /project guidance parent because it is not a directory/)
-  assert.equal(existsSync(join(cwd, 'AGENTS.md')), false)
+  const cnad = join(cwd, '.cnad')
+  const method = join(cnad, 'method')
+  mkdirSync(method, { recursive: true })
+  chmodSync(cnad, 0o555)
+  try {
+    const result = run(cwd, 'init')
+    assert.equal(result.status, 1)
+    assert.equal(existsSync(join(cnad, 'project.md')), false)
+    assert.equal(existsSync(join(cnad, 'version.json')), false)
+    assert.equal(existsSync(join(cwd, 'AGENTS.md')), false)
+  } finally {
+    chmodSync(cnad, 0o755)
+  }
 })
 
 test('non-regular managed targets are rejected before they can block or be read', () => {
