@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -17,6 +17,9 @@ const projectPath = join(cnadRoot, 'project.md')
 const agentsPath = join(cwd, 'AGENTS.md')
 
 const integrationBlock = `<!-- cnad:start -->\n## CNAD\n\nFollow the CNAD method in \`.cnad/method/\`.\nProject-specific CNAD guidance belongs in \`.cnad/project.md\`.\n<!-- cnad:end -->\n`
+const integrationBlockBytes = Buffer.from(integrationBlock)
+const integrationStartBytes = Buffer.from('<!-- cnad:start -->')
+const integrationEndBytes = Buffer.from('<!-- cnad:end -->')
 
 function normalizeText(content) {
   return content.replace(/\r\n?/g, '\n')
@@ -88,6 +91,18 @@ function nearestExistingParent(target) {
   return current
 }
 
+function inspectAgentsIntegration(bytes) {
+  const hasBlock = bytes.indexOf(integrationBlockBytes) !== -1
+  const hasStart = bytes.indexOf(integrationStartBytes) !== -1
+  const hasEnd = bytes.indexOf(integrationEndBytes) !== -1
+
+  if (hasBlock) return 'complete'
+  if (hasStart || hasEnd) {
+    throw new Error('Refusing AGENTS.md because it contains an incomplete CNAD integration marker.')
+  }
+  return 'missing'
+}
+
 function validateAgentsIntegrationTarget() {
   assertSafeRepositoryPath(agentsPath)
   const info = lstatIfExists(agentsPath)
@@ -99,6 +114,7 @@ function validateAgentsIntegrationTarget() {
     throw new Error('Refusing AGENTS.md because it is not a regular file.')
   }
   accessSync(agentsPath, constants.R_OK | constants.W_OK)
+  inspectAgentsIntegration(readFileSync(agentsPath))
 }
 
 function validateProjectGuidanceTarget() {
@@ -117,6 +133,17 @@ function validateProjectGuidanceTarget() {
     throw new Error('Refusing .cnad/project.md because it is not a regular file.')
   }
   accessSync(projectPath, constants.R_OK)
+}
+
+function validateManifestInstallTarget() {
+  assertSafeRepositoryPath(manifestPath)
+  if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
+  const parent = nearestExistingParent(manifestPath)
+  const parentInfo = lstatIfExists(parent)
+  if (!parentInfo?.isDirectory()) {
+    throw new Error(`Refusing manifest parent because it is not a directory: ${relative(cwd, parent)}`)
+  }
+  accessSync(parent, constants.W_OK)
 }
 
 function isValidManagedPath(managedPath) {
@@ -164,20 +191,20 @@ function appendAgentsIntegration() {
     return 'created'
   }
 
-  const existing = readFileSync(agentsPath, 'utf8')
-  if (existing.includes('<!-- cnad:start -->')) return 'unchanged'
+  const existing = readFileSync(agentsPath)
+  const state = inspectAgentsIntegration(existing)
+  if (state === 'complete') return 'unchanged'
 
-  const separator = existing.endsWith('\n') ? '\n' : '\n\n'
+  const separator = existing.length > 0 && existing[existing.length - 1] === 0x0a ? Buffer.from('\n') : Buffer.from('\n\n')
   assertSafeRepositoryPath(agentsPath)
-  writeFileSync(agentsPath, `${existing}${separator}${integrationBlock}`)
+  appendFileSync(agentsPath, Buffer.concat([separator, integrationBlockBytes]))
   return 'appended'
 }
 
 function init() {
-  assertSafeRepositoryPath(manifestPath)
+  validateManifestInstallTarget()
   validateProjectGuidanceTarget()
   validateAgentsIntegrationTarget()
-  if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
 
   const entries = templateEntries()
   for (const entry of entries) assertSafeRepositoryPath(managedTarget(entry.rel))
