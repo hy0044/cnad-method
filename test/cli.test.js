@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { linkSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -160,4 +160,14 @@ test('symlinked AGENTS.md is rejected before init can modify its target', () => 
   assert.equal(result.status, 1)
   assert.match(result.stderr, /Refusing symlinked repository path/)
   assert.equal(readFileSync(externalPath, 'utf8'), originalContent)
+})
+
+test('invalid AGENTS.md is rejected before init mutates the repository', () => {
+  const cwd = tempRepo()
+  mkdirSync(join(cwd, 'AGENTS.md'))
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /AGENTS\.md because it is not a regular file/)
+  assert.equal(existsSync(join(cwd, '.cnad')), false)
 })
