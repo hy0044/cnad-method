@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -82,6 +82,19 @@ function assertSafeRepositoryPath(target) {
   }
 }
 
+function validateAgentsIntegrationTarget() {
+  assertSafeRepositoryPath(agentsPath)
+  const info = lstatIfExists(agentsPath)
+  if (!info) {
+    accessSync(cwd, constants.W_OK)
+    return
+  }
+  if (!info.isFile()) {
+    throw new Error('Refusing AGENTS.md because it is not a regular file.')
+  }
+  accessSync(agentsPath, constants.R_OK | constants.W_OK)
+}
+
 function isValidManagedPath(managedPath) {
   if (typeof managedPath !== 'string' || managedPath.includes('\\')) return false
   const parts = managedPath.split('/')
@@ -136,7 +149,7 @@ function appendAgentsIntegration() {
 function init() {
   assertSafeRepositoryPath(manifestPath)
   assertSafeRepositoryPath(projectPath)
-  assertSafeRepositoryPath(agentsPath)
+  validateAgentsIntegrationTarget()
   if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
 
   const entries = templateEntries()
