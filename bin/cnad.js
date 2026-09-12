@@ -77,12 +77,19 @@ function init() {
   if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
 
   const entries = templateEntries()
-  mkdirSync(methodRoot, { recursive: true })
+  const collisions = entries
+    .map((entry) => managedTarget(entry.rel))
+    .filter((target) => existsSync(target))
+    .map((target) => relative(cwd, target))
 
+  if (collisions.length > 0) {
+    throw new Error(`Refusing to overwrite existing files:\n- ${collisions.join('\n- ')}`)
+  }
+
+  mkdirSync(methodRoot, { recursive: true })
   for (const entry of entries) {
     const target = managedTarget(entry.rel)
     ensureParent(target)
-    if (existsSync(target)) throw new Error(`Refusing to overwrite existing file: ${relative(cwd, target)}`)
     writeFileSync(target, entry.content)
   }
 
@@ -121,8 +128,14 @@ function inspectUpdate() {
   for (const entry of entries) {
     const managedPath = `method/${entry.rel}`
     const previousHash = manifest.files?.[managedPath]
-    if (!previousHash) changes.push(`${managedPath} will be added`)
-    else if (previousHash !== entry.hash) changes.push(`${managedPath} will be updated`)
+    const target = join(cnadRoot, managedPath)
+
+    if (!previousHash) {
+      if (existsSync(target)) conflicts.push(`${managedPath} exists but is not CNAD-owned`)
+      changes.push(`${managedPath} will be added`)
+    } else if (previousHash !== entry.hash) {
+      changes.push(`${managedPath} will be updated`)
+    }
   }
 
   return { manifest, entries, conflicts, changes }
@@ -151,7 +164,7 @@ function checkUpdate() {
 function update() {
   const { manifest, entries, conflicts } = inspectUpdate()
   if (conflicts.length > 0) {
-    throw new Error(`Update blocked because CNAD-managed files were changed locally:\n- ${conflicts.join('\n- ')}`)
+    throw new Error(`Update blocked because repository files conflict with CNAD ownership:\n- ${conflicts.join('\n- ')}`)
   }
 
   const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
