@@ -34,6 +34,8 @@ pnpm dlx cnad-method update
 
 CNAD records hashes of the files it owns. If a CNAD-managed file has been edited locally, an update is blocked instead of silently overwriting the change.
 
+Managed-file hashes normalize text line endings, so a normal Git checkout using CRLF on Windows does not count as a local edit. Manifest paths are also validated before any managed file is read or removed; only normalized descendants of `.cnad/method/` are accepted.
+
 Core ownership rule:
 
 > **CNAD-owned files can be upgraded automatically. Project-owned files must never be silently overwritten.**
