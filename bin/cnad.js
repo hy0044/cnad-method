@@ -82,6 +82,12 @@ function assertSafeRepositoryPath(target) {
   }
 }
 
+function nearestExistingParent(target) {
+  let current = dirname(target)
+  while (!existsSync(current)) current = dirname(current)
+  return current
+}
+
 function validateAgentsIntegrationTarget() {
   assertSafeRepositoryPath(agentsPath)
   const info = lstatIfExists(agentsPath)
@@ -93,6 +99,16 @@ function validateAgentsIntegrationTarget() {
     throw new Error('Refusing AGENTS.md because it is not a regular file.')
   }
   accessSync(agentsPath, constants.R_OK | constants.W_OK)
+}
+
+function validateProjectGuidanceTarget() {
+  assertSafeRepositoryPath(projectPath)
+  const info = lstatIfExists(projectPath)
+  if (!info) return
+  if (!info.isFile()) {
+    throw new Error('Refusing .cnad/project.md because it is not a regular file.')
+  }
+  accessSync(projectPath, constants.R_OK)
 }
 
 function isValidManagedPath(managedPath) {
@@ -148,7 +164,7 @@ function appendAgentsIntegration() {
 
 function init() {
   assertSafeRepositoryPath(manifestPath)
-  assertSafeRepositoryPath(projectPath)
+  validateProjectGuidanceTarget()
   validateAgentsIntegrationTarget()
   if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
 
@@ -223,6 +239,32 @@ function inspectUpdate() {
   return { manifest, entries, conflicts, changes }
 }
 
+function preflightUpdateMutations(manifest, entries) {
+  assertSafeRepositoryPath(manifestPath)
+  accessSync(manifestPath, constants.R_OK | constants.W_OK)
+
+  const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
+  for (const managedPath of Object.keys(manifest.files ?? {})) {
+    if (!nextPaths.has(managedPath)) {
+      const target = join(cnadRoot, managedPath)
+      assertSafeRepositoryPath(target)
+      accessSync(dirname(target), constants.W_OK)
+    }
+  }
+
+  for (const entry of entries) {
+    const target = managedTarget(entry.rel)
+    assertSafeRepositoryPath(target)
+    const info = lstatIfExists(target)
+    if (info) {
+      if (!info.isFile()) throw new Error(`Refusing managed target because it is not a regular file: ${relative(cwd, target)}`)
+      accessSync(target, constants.W_OK)
+    } else {
+      accessSync(nearestExistingParent(target), constants.W_OK)
+    }
+  }
+}
+
 function checkUpdate() {
   const { manifest, conflicts, changes } = inspectUpdate()
   console.log(`Installed: ${manifest.version ?? 'unknown'}`)
@@ -248,6 +290,8 @@ function update() {
   if (conflicts.length > 0) {
     throw new Error(`Update blocked because repository files conflict with CNAD ownership:\n- ${conflicts.join('\n- ')}`)
   }
+
+  preflightUpdateMutations(manifest, entries)
 
   const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
   for (const managedPath of Object.keys(manifest.files ?? {})) {
