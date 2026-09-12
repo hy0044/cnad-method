@@ -104,7 +104,15 @@ function validateAgentsIntegrationTarget() {
 function validateProjectGuidanceTarget() {
   assertSafeRepositoryPath(projectPath)
   const info = lstatIfExists(projectPath)
-  if (!info) return
+  if (!info) {
+    const parent = nearestExistingParent(projectPath)
+    const parentInfo = lstatIfExists(parent)
+    if (!parentInfo?.isDirectory()) {
+      throw new Error(`Refusing project guidance parent because it is not a directory: ${relative(cwd, parent)}`)
+    }
+    accessSync(parent, constants.W_OK)
+    return
+  }
   if (!info.isFile()) {
     throw new Error('Refusing .cnad/project.md because it is not a regular file.')
   }
