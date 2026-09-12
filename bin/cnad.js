@@ -118,8 +118,10 @@ function validateAgentsIntegrationTarget() {
   if (!info.isFile()) {
     throw new Error('Refusing AGENTS.md because it is not a regular file.')
   }
-  accessSync(agentsPath, constants.R_OK | constants.W_OK)
-  inspectAgentsIntegration(readFileSync(agentsPath))
+
+  accessSync(agentsPath, constants.R_OK)
+  const state = inspectAgentsIntegration(readFileSync(agentsPath))
+  if (state === 'missing') accessSync(agentsPath, constants.W_OK)
 }
 
 function validateProjectGuidanceTarget() {
@@ -291,6 +293,10 @@ function inspectUpdate() {
   return { manifest, entries, conflicts, changes }
 }
 
+function entriesRequiringWrite(manifest, entries) {
+  return entries.filter((entry) => manifest.files?.[`method/${entry.rel}`] !== entry.hash)
+}
+
 function preflightUpdateMutations(manifest, entries) {
   assertSafeRepositoryPath(manifestPath)
   accessSync(manifestPath, constants.R_OK | constants.W_OK)
@@ -304,7 +310,7 @@ function preflightUpdateMutations(manifest, entries) {
     }
   }
 
-  for (const entry of entries) {
+  for (const entry of entriesRequiringWrite(manifest, entries)) {
     const target = managedTarget(entry.rel)
     assertSafeRepositoryPath(target)
     const info = lstatIfExists(target)
@@ -354,7 +360,7 @@ function update() {
     }
   }
 
-  for (const entry of entries) {
+  for (const entry of entriesRequiringWrite(manifest, entries)) {
     const target = managedTarget(entry.rel)
     ensureParent(target)
     assertSafeRepositoryPath(target)
