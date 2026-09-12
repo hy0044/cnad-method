@@ -39,6 +39,17 @@ test('init installs managed files without taking ownership of project guidance',
   assert.ok(manifest.files['method/review.md'])
 })
 
+test('init rejects unsupported options without mutating the repository', () => {
+  for (const option of ['--help', '--dry-run']) {
+    const cwd = tempRepo()
+    const result = run(cwd, 'init', option)
+    assert.equal(result.status, 1)
+    assert.match(result.stderr, /Unknown command/)
+    assert.equal(existsSync(join(cwd, '.cnad')), false)
+    assert.equal(existsSync(join(cwd, 'AGENTS.md')), false)
+  }
+})
+
 test('update --check reports a clean installation without modifying project files', () => {
   const cwd = tempRepo()
   assert.equal(run(cwd, 'init').status, 0)
@@ -103,6 +114,23 @@ test('manifest traversal paths are rejected before project-owned files can be to
   assert.equal(update.status, 1)
   assert.match(update.stderr, /Invalid CNAD manifest path/)
   assert.equal(readFileSync(protectedPath, 'utf8'), protectedContent)
+})
+
+test('non-regular manifests are rejected before they can block reads', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  unlinkSync(manifestPath)
+  mkdirSync(manifestPath)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /Invalid CNAD manifest.*regular file/)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 1)
+  assert.match(update.stderr, /Invalid CNAD manifest.*regular file/)
 })
 
 test('symlinked managed files are rejected before their targets can be overwritten', () => {
