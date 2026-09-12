@@ -125,7 +125,9 @@ syncBuiltinESMExports()
   )
 })
 
-test('successful update preserves modes of existing managed files and manifest', () => {
+test('successful update preserves modes of existing managed files and manifest', {
+  skip: process.platform === 'win32',
+}, () => {
   const cwd = tempRepo()
   assert.equal(run(cwd, 'init').status, 0)
 
@@ -146,4 +148,9 @@ test('successful update preserves modes of existing managed files and manifest',
   assert.equal(update.status, 0, update.stderr)
   assert.equal(statSync(managedPath).mode & 0o777, 0o600)
   assert.equal(statSync(manifestPath).mode & 0o777, 0o640)
+  assert.equal(
+    readdirSync(join(cwd, '.cnad', 'method')).some((name) => name.includes('.cnad-update-backup-')) ||
+      readdirSync(join(cwd, '.cnad')).some((name) => name.includes('.cnad-update-backup-')),
+    false,
+  )
 })
