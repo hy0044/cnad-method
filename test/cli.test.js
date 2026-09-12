@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -13,6 +14,10 @@ function tempRepo() {
 
 function run(cwd, ...args) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8' })
+}
+
+function normalizedHash(content) {
+  return createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex')
 }
 
 test('init installs managed files without taking ownership of project guidance', () => {
@@ -62,4 +67,40 @@ test('local edits to CNAD-managed files block updates', () => {
   assert.equal(update.status, 1)
   assert.match(update.stderr, /Update blocked/)
   assert.match(readFileSync(managed, 'utf8'), /local edit/)
+})
+
+test('CRLF checkout does not count as a local managed-file edit', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const managed = join(cwd, '.cnad', 'method', 'review.md')
+  const lfContent = readFileSync(managed, 'utf8')
+  writeFileSync(managed, lfContent.replace(/\n/g, '\r\n'))
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 0, check.stderr)
+  assert.match(check.stdout, /No CNAD-managed file changes detected/)
+})
+
+test('manifest traversal paths are rejected before project-owned files can be touched', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const protectedPath = join(cwd, 'project-owned.txt')
+  const protectedContent = 'keep me\n'
+  writeFileSync(protectedPath, protectedContent)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files['../project-owned.txt'] = normalizedHash(protectedContent)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /Invalid CNAD manifest path/)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 1)
+  assert.match(update.stderr, /Invalid CNAD manifest path/)
+  assert.equal(readFileSync(protectedPath, 'utf8'), protectedContent)
 })
