@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -364,9 +364,10 @@ function rollbackMutations(staged) {
 
 function stageMutation(staged, target) {
   assertSafeRepositoryPath(target)
-  const backup = existsSync(target) ? backupPathFor(target, staged.length) : null
+  const info = lstatIfExists(target)
+  const backup = info ? backupPathFor(target, staged.length) : null
   if (backup) renameSync(target, backup)
-  const mutation = { target, backup, writeAttempted: false }
+  const mutation = { target, backup, mode: info?.mode, writeAttempted: false }
   staged.push(mutation)
   return mutation
 }
@@ -376,6 +377,7 @@ function writeStagedMutation(mutation, content) {
   assertSafeRepositoryPath(mutation.target)
   mutation.writeAttempted = true
   writeFileSync(mutation.target, content)
+  if (mutation.mode !== undefined) chmodSync(mutation.target, mutation.mode)
 }
 
 function throwWithRollback(error, staged) {

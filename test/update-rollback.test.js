@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -123,4 +123,27 @@ syncBuiltinESMExports()
       readdirSync(join(cwd, '.cnad')).some((name) => name.includes('.cnad-update-backup-')),
     false,
   )
+})
+
+test('successful update preserves modes of existing managed files and manifest', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const managedPath = join(cwd, '.cnad', 'method', 'review.md')
+  const managedContent = '# Old review template\n'
+  writeFileSync(managedPath, managedContent)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.version = '0.0.0'
+  manifest.files['method/review.md'] = normalizedHash(managedContent)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  chmodSync(managedPath, 0o600)
+  chmodSync(manifestPath, 0o640)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 0, update.stderr)
+  assert.equal(statSync(managedPath).mode & 0o777, 0o600)
+  assert.equal(statSync(manifestPath).mode & 0o777, 0o640)
 })
