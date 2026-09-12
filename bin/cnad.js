@@ -68,12 +68,16 @@ function assertSafeRepositoryPath(target) {
   }
 
   let current = cwd
-  for (const part of rel.split(sep)) {
+  const parts = rel.split(sep)
+  for (const [index, part] of parts.entries()) {
     current = join(current, part)
     const info = lstatIfExists(current)
     if (!info) break
     if (info.isSymbolicLink()) {
       throw new Error(`Refusing symlinked repository path: ${relative(cwd, current)}`)
+    }
+    if (index === parts.length - 1 && info.isFile() && info.nlink > 1) {
+      throw new Error(`Refusing hard-linked repository file: ${relative(cwd, current)}`)
     }
   }
 }
