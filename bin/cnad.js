@@ -24,7 +24,7 @@ function hash(content) {
 
 function walkFiles(root) {
   const files = []
-  for (const entry of readdirSync(root)) {
+  for (const entry of readdirSync(root).sort()) {
     const full = join(root, entry)
     if (statSync(full).isDirectory()) files.push(...walkFiles(full))
     else files.push(full)
