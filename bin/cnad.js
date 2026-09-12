@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -52,6 +52,32 @@ function ensureParent(path) {
   mkdirSync(dirname(path), { recursive: true })
 }
 
+function lstatIfExists(path) {
+  try {
+    return lstatSync(path)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null
+    throw error
+  }
+}
+
+function assertSafeRepositoryPath(target) {
+  const rel = relative(cwd, target)
+  if (rel === '' || isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`)) {
+    throw new Error(`Refusing path outside repository: ${target}`)
+  }
+
+  let current = cwd
+  for (const part of rel.split(sep)) {
+    current = join(current, part)
+    const info = lstatIfExists(current)
+    if (!info) break
+    if (info.isSymbolicLink()) {
+      throw new Error(`Refusing symlinked repository path: ${relative(cwd, current)}`)
+    }
+  }
+}
+
 function isValidManagedPath(managedPath) {
   if (typeof managedPath !== 'string' || managedPath.includes('\\')) return false
   const parts = managedPath.split('/')
@@ -74,17 +100,21 @@ function validateManifest(manifest) {
 }
 
 function readManifest() {
+  assertSafeRepositoryPath(manifestPath)
   if (!existsSync(manifestPath)) throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
   return validateManifest(JSON.parse(readFileSync(manifestPath, 'utf8')))
 }
 
 function writeManifest(entries) {
+  assertSafeRepositoryPath(manifestPath)
   const files = Object.fromEntries(entries.map(({ rel, hash: fileHash }) => [`method/${rel}`, fileHash]))
   ensureParent(manifestPath)
+  assertSafeRepositoryPath(manifestPath)
   writeFileSync(manifestPath, `${JSON.stringify({ version: packageVersion, files }, null, 2)}\n`)
 }
 
 function appendAgentsIntegration() {
+  assertSafeRepositoryPath(agentsPath)
   if (!existsSync(agentsPath)) {
     writeFileSync(agentsPath, `# Repository instructions\n\n${integrationBlock}`)
     return 'created'
@@ -94,14 +124,20 @@ function appendAgentsIntegration() {
   if (existing.includes('<!-- cnad:start -->')) return 'unchanged'
 
   const separator = existing.endsWith('\n') ? '\n' : '\n\n'
+  assertSafeRepositoryPath(agentsPath)
   writeFileSync(agentsPath, `${existing}${separator}${integrationBlock}`)
   return 'appended'
 }
 
 function init() {
+  assertSafeRepositoryPath(manifestPath)
+  assertSafeRepositoryPath(projectPath)
+  assertSafeRepositoryPath(agentsPath)
   if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
 
   const entries = templateEntries()
+  for (const entry of entries) assertSafeRepositoryPath(managedTarget(entry.rel))
+
   const collisions = entries
     .map((entry) => managedTarget(entry.rel))
     .filter((target) => existsSync(target))
@@ -115,10 +151,12 @@ function init() {
   for (const entry of entries) {
     const target = managedTarget(entry.rel)
     ensureParent(target)
+    assertSafeRepositoryPath(target)
     writeFileSync(target, entry.content)
   }
 
   if (!existsSync(projectPath)) {
+    assertSafeRepositoryPath(projectPath)
     writeFileSync(projectPath, '# Project-specific CNAD guidance\n\nAdd repository-specific constraints here. This file is project-owned and is not overwritten by `cnad update`.\n')
   }
 
@@ -138,6 +176,7 @@ function inspectUpdate() {
 
   for (const [managedPath, recordedHash] of Object.entries(manifest.files ?? {})) {
     const target = join(cnadRoot, managedPath)
+    assertSafeRepositoryPath(target)
     if (!existsSync(target)) {
       conflicts.push(`${managedPath} is missing`)
       continue
@@ -154,6 +193,7 @@ function inspectUpdate() {
     const managedPath = `method/${entry.rel}`
     const previousHash = manifest.files?.[managedPath]
     const target = join(cnadRoot, managedPath)
+    assertSafeRepositoryPath(target)
 
     if (!previousHash) {
       if (existsSync(target)) conflicts.push(`${managedPath} exists but is not CNAD-owned`)
@@ -196,6 +236,7 @@ function update() {
   for (const managedPath of Object.keys(manifest.files ?? {})) {
     if (!nextPaths.has(managedPath)) {
       const target = join(cnadRoot, managedPath)
+      assertSafeRepositoryPath(target)
       if (existsSync(target)) unlinkSync(target)
     }
   }
@@ -203,6 +244,7 @@ function update() {
   for (const entry of entries) {
     const target = managedTarget(entry.rel)
     ensureParent(target)
+    assertSafeRepositoryPath(target)
     writeFileSync(target, entry.content)
   }
 
