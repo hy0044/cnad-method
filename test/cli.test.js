@@ -9,7 +9,9 @@ import test from 'node:test'
 const cli = resolve('bin/cnad.js')
 
 function tempRepo() {
-  return mkdtempSync(join(tmpdir(), 'cnad-'))
+  const cwd = mkdtempSync(join(tmpdir(), 'cnad-'))
+  assert.equal(spawnSync('git', ['init', '--quiet'], { cwd }).status, 0)
+  return cwd
 }
 
 function run(cwd, ...args) {
