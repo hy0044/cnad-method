@@ -206,13 +206,16 @@ function assertGitRepository() {
 
 function isRecoverableByGit(target) {
   const path = relative(cwd, target).replaceAll('\\', '/')
-  const tracked = spawnSync('git', ['ls-files', '--error-unmatch', '--', path], { cwd, stdio: 'ignore' })
-  if (tracked.status !== 0) return false
+  const indexed = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--stage', '--error-unmatch', '-z', '--', path], { cwd })
+  if (indexed.status !== 0) return false
 
-  // The index is a valid recovery boundary only when it contains the bytes that
-  // are currently in the working tree. This also rejects intent-to-add entries.
-  const unchanged = spawnSync('git', ['diff', '--quiet', '--no-ext-diff', '--', path], { cwd, stdio: 'ignore' })
-  return unchanged.status === 0
+  const records = indexed.stdout.subarray(0, -1).toString().split('\0')
+  if (records.length !== 1) return false
+  const match = /^(?:\d+) ([0-9a-f]+) 0\t/.exec(records[0])
+  if (!match) return false
+
+  const blob = spawnSync('git', ['cat-file', 'blob', match[1]], { cwd })
+  return blob.status === 0 && readFileSync(target).equals(blob.stdout)
 }
 
 function appendAgentsIntegration() {

@@ -196,3 +196,52 @@ test('one unrecoverable target blocks updates to all recoverable targets', () =>
   assert.equal(readFileSync(reviewPath, 'utf8'), reviewBefore)
   assert.equal(readFileSync(manifestPath, 'utf8'), manifestBefore)
 })
+
+for (const indexFlag of ['--assume-unchanged', '--skip-worktree']) {
+  test(`update detects managed-file changes hidden by ${indexFlag}`, () => {
+    const cwd = tempRepo()
+    assert.equal(run(cwd, 'init').status, 0)
+
+    const managedPath = join(cwd, '.cnad', 'method', 'workflow.md')
+    const manifestPath = join(cwd, '.cnad', 'version.json')
+    const oldContent = '# Old workflow\n'
+    writeFileSync(managedPath, oldContent)
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.version = '0.0.0'
+    manifest.files['method/workflow.md'] = normalizedHash(oldContent)
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    commitAll(cwd)
+
+    git(cwd, 'update-index', indexFlag, '--', '.cnad/method/workflow.md')
+    const userContent = '# User workflow hidden from Git status\n'
+    writeFileSync(managedPath, userContent)
+    manifest.files['method/workflow.md'] = normalizedHash(userContent)
+    const manifestBefore = `${JSON.stringify(manifest, null, 2)}\n`
+    writeFileSync(manifestPath, manifestBefore)
+    git(cwd, 'add', '.cnad/version.json')
+
+    const update = run(cwd, 'update')
+    assert.equal(update.status, 1)
+    assert.match(update.stderr, /\.cnad\/method\/workflow\.md/)
+    assert.equal(readFileSync(managedPath, 'utf8'), userContent)
+    assert.equal(readFileSync(manifestPath, 'utf8'), manifestBefore)
+  })
+}
+
+test('recoverability treats pathspec magic characters as literal path content', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const literalPath = join(cwd, '.cnad', 'method', ':obsolete.md')
+  const literalContent = 'obsolete\n'
+  writeFileSync(literalPath, literalContent)
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files['method/:obsolete.md'] = normalizedHash(literalContent)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  commitAll(cwd)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 0, update.stderr)
+  assert.equal(readFileSync(manifestPath, 'utf8').includes(':obsolete.md'), false)
+})
