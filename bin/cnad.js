@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { accessSync, appendFileSync, chmodSync, chownSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { accessSync, appendFileSync, chmodSync, chownSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -59,7 +59,7 @@ function lstatIfExists(path) {
   try {
     return lstatSync(path)
   } catch (error) {
-    if (error?.code === 'ENOENT') return null
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') return null
     throw error
   }
 }
@@ -350,6 +350,16 @@ function rollbackMutations(staged) {
     }
   }
 
+  for (const { createdParents = [] } of [...staged].reverse()) {
+    for (const parent of createdParents) {
+      try {
+        if (existsSync(parent)) rmdirSync(parent)
+      } catch (error) {
+        rollbackErrors.push(error)
+      }
+    }
+  }
+
   for (const { target, backup } of [...staged].reverse()) {
     if (!backup) continue
     try {
@@ -369,18 +379,32 @@ function stageMutation(staged, target) {
   const info = lstatIfExists(target)
   const backup = info ? backupPathFor(target, staged.length) : null
   if (backup) renameSync(target, backup)
-  const mutation = { target, backup, mode: info?.mode, uid: info?.uid, gid: info?.gid, writeAttempted: false }
+  const mutation = { target, backup, mode: info?.mode, uid: info?.uid, gid: info?.gid, createdParents: [], writeAttempted: false }
   staged.push(mutation)
   return mutation
 }
 
 function writeStagedMutation(mutation, content) {
+  let parent = dirname(mutation.target)
+  while (!existsSync(parent)) {
+    mutation.createdParents.push(parent)
+    parent = dirname(parent)
+  }
   ensureParent(mutation.target)
   assertSafeRepositoryPath(mutation.target)
   mutation.writeAttempted = true
   writeFileSync(mutation.target, content)
   if (mutation.mode !== undefined) {
-    if (process.platform !== 'win32') chownSync(mutation.target, mutation.uid, mutation.gid)
+    if (process.platform !== 'win32') {
+      const current = lstatSync(mutation.target)
+      if (current.uid !== mutation.uid || current.gid !== mutation.gid) {
+        const effectiveUid = process.geteuid?.()
+        const sharedWrite = effectiveUid !== undefined && effectiveUid !== 0 &&
+          current.uid === effectiveUid && current.gid === mutation.gid &&
+          (mutation.mode & 0o020) !== 0
+        if (!sharedWrite) chownSync(mutation.target, mutation.uid, mutation.gid)
+      }
+    }
     chmodSync(mutation.target, mutation.mode)
   }
 }
