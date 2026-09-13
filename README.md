@@ -42,7 +42,7 @@ Core ownership rule:
 
 ### v0.1 update-safety guarantee
 
-`cnad update` assumes an ordinary Git-managed working tree. The repository must be a Git repository, and existing CNAD-managed files must be tracked and have no uncommitted changes detectable by normal Git diff semantics. Under those conditions, ordinary local modifications are rejected before an update.
+`cnad update` assumes an ordinary Git-managed working tree. The repository must be a Git repository, and existing CNAD-managed files, including `.cnad/version.json`, must be tracked and have no uncommitted changes detectable by normal Git diff semantics. Under those conditions, ordinary local modifications are rejected before an update.
 
 Special Git index states and customizations are outside the v0.1 update-safety guarantee. This includes `skip-worktree`, `assume-unchanged`, custom clean/smudge filter edge cases, and other special index configurations.
 
