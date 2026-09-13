@@ -34,6 +34,9 @@ If there are no findings, state `None` rather than manufacturing comments.
 
 ## Scope discipline
 
+- A technically valid finding is not automatically an implementation obligation. Before classifying it as Blocking or Non-blocking, determine whether it is inside the product's intended responsibility and support boundary.
+- If a valid finding is outside that boundary, preserve the finding, confirm or document the boundary when needed, and do not expand the implementation scope.
+- If it is inside the boundary, classify it by task and risk, then decide whether the current task should fix, defer, or reject it.
 - Blocking / in-scope findings must be fixed in the current task.
 - Non-blocking / out-of-scope improvements must not cause `REQUEST_CHANGES` by themselves.
 - Critical security, privacy, data-integrity, production-safety, or similarly severe findings should trigger escalation.
@@ -43,3 +46,5 @@ A non-blocking suggestion may be `Accepted`, `Deferred`, or `Rejected`.
 > A review suggestion is not an obligation.
 
 > Do not lose useful improvements. Do not turn every suggestion into work.
+
+> Review broadly. Change narrowly.

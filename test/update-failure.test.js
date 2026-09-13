@@ -129,6 +129,77 @@ test('update requires a Git repository before inspecting or modifying CNAD files
   assert.match(update.stderr, /requires a Git repository/)
 })
 
+test('update --check requires a Git repository', () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'cnad-check-no-git-'))
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /requires a Git repository/)
+})
+
+test('update --check rejects an untracked managed target that requires mutation', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const managedPath = join(cwd, '.cnad', 'method', 'workflow.md')
+  const oldContent = '# Old workflow\n'
+  writeFileSync(managedPath, oldContent)
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.files['method/workflow.md'] = normalizedHash(oldContent)
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  commitAll(cwd)
+  git(cwd, 'rm', '--cached', '--quiet', '.cnad/method/workflow.md')
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /\.cnad\/method\/workflow\.md/)
+})
+
+test('update --check rejects an untracked manifest when it requires mutation', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.version = '0.0.0'
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  commitAll(cwd)
+  git(cwd, 'rm', '--cached', '--quiet', '.cnad/version.json')
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 1)
+  assert.match(check.stderr, /\.cnad\/version\.json/)
+})
+
+test('update --check rejects an ordinary local modification', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+  commitAll(cwd)
+
+  const managedPath = join(cwd, '.cnad', 'method', 'workflow.md')
+  writeFileSync(managedPath, `${readFileSync(managedPath, 'utf8')}local change\n`)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 2)
+  assert.match(check.stdout, /has local changes/)
+})
+
+test('update --check accepts a clean tracked repository with a pending update', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.version = '0.0.0'
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  commitAll(cwd)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 0, check.stderr)
+})
+
 test('update rejects untracked managed files before mutating any target', () => {
   const cwd = tempRepo()
   assert.equal(run(cwd, 'init').status, 0)
