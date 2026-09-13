@@ -9,7 +9,9 @@ import test from 'node:test'
 const cli = resolve('bin/cnad.js')
 
 function tempRepo() {
-  return mkdtempSync(join(tmpdir(), 'cnad-'))
+  const cwd = mkdtempSync(join(tmpdir(), 'cnad-'))
+  assert.equal(spawnSync('git', ['init', '--quiet'], { cwd }).status, 0)
+  return cwd
 }
 
 function run(cwd, ...args) {
@@ -334,6 +336,8 @@ test('update skips write checks and rewrites for clean unchanged managed files',
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   manifest.files['method/workflow.md'] = normalizedHash(oldContent)
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  assert.equal(spawnSync('git', ['add', '.cnad'], { cwd }).status, 0)
+  assert.equal(spawnSync('git', ['-c', 'user.name=CNAD Test', '-c', 'user.email=cnad@example.com', 'commit', '--quiet', '-m', 'tracked CNAD files'], { cwd }).status, 0)
 
   try {
     const update = run(cwd, 'update')
