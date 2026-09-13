@@ -2,7 +2,19 @@
 
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  accessSync,
+  appendFileSync,
+  constants,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -157,7 +169,9 @@ function validateManifestInstallTarget() {
 function isValidManagedPath(managedPath) {
   if (typeof managedPath !== 'string' || managedPath.includes('\\')) return false
   const parts = managedPath.split('/')
-  return parts.length > 1 && parts[0] === 'method' && parts.every((part) => part !== '' && part !== '.' && part !== '..')
+  return (
+    parts.length > 1 && parts[0] === 'method' && parts.every((part) => part !== '' && part !== '.' && part !== '..')
+  )
 }
 
 function validateManifest(manifest) {
@@ -206,7 +220,10 @@ function assertGitRepository() {
 
 function isRecoverableByGit(target) {
   const path = relative(cwd, target).replaceAll('\\', '/')
-  const tracked = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', path], { cwd, stdio: 'ignore' })
+  const tracked = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', path], {
+    cwd,
+    stdio: 'ignore',
+  })
   if (tracked.status !== 0) return false
 
   const unchanged = spawnSync('git', ['--literal-pathspecs', 'diff', '--quiet', '--', path], { cwd, stdio: 'ignore' })
@@ -224,7 +241,8 @@ function appendAgentsIntegration() {
   const state = inspectAgentsIntegration(existing)
   if (state === 'complete') return 'unchanged'
 
-  const separator = existing.length > 0 && existing[existing.length - 1] === 0x0a ? Buffer.from('\n') : Buffer.from('\n\n')
+  const separator =
+    existing.length > 0 && existing[existing.length - 1] === 0x0a ? Buffer.from('\n') : Buffer.from('\n\n')
   assertSafeRepositoryPath(agentsPath)
   appendFileSync(agentsPath, Buffer.concat([separator, integrationBlockBytes]))
   return 'appended'
@@ -257,7 +275,10 @@ function init() {
 
   if (!existsSync(projectPath)) {
     assertSafeRepositoryPath(projectPath)
-    writeFileSync(projectPath, '# Project-specific CNAD guidance\n\nAdd repository-specific constraints here. This file is project-owned and is not overwritten by `cnad update`.\n')
+    writeFileSync(
+      projectPath,
+      '# Project-specific CNAD guidance\n\nAdd repository-specific constraints here. This file is project-owned and is not overwritten by `cnad update`.\n',
+    )
   }
 
   writeManifest(entries)
@@ -341,7 +362,9 @@ function preflightUpdateMutations(manifest, entries) {
   const unrecoverable = existingTargets.filter((target) => !isRecoverableByGit(target))
   if (unrecoverable.length > 0) {
     const paths = unrecoverable.map((target) => relative(cwd, target).replaceAll('\\', '/'))
-    throw new Error(`CNAD update requires existing managed files to be recoverable by Git.\nThe following files cannot be safely recovered:\n- ${paths.join('\n- ')}\nCommit or otherwise place the CNAD-managed files under Git before running update.`)
+    throw new Error(
+      `CNAD update requires existing managed files to be recoverable by Git.\nThe following files cannot be safely recovered:\n- ${paths.join('\n- ')}\nCommit or otherwise place the CNAD-managed files under Git before running update.`,
+    )
   }
 
   assertSafeRepositoryPath(manifestPath)
@@ -358,7 +381,8 @@ function preflightUpdateMutations(manifest, entries) {
     assertSafeRepositoryPath(target)
     const info = lstatIfExists(target)
     if (info) {
-      if (!info.isFile()) throw new Error(`Refusing managed target because it is not a regular file: ${relative(cwd, target)}`)
+      if (!info.isFile())
+        throw new Error(`Refusing managed target because it is not a regular file: ${relative(cwd, target)}`)
       accessSync(target, constants.W_OK)
     } else {
       accessSync(nearestExistingParent(target), constants.W_OK)
@@ -396,7 +420,9 @@ function update() {
   assertGitRepository()
   const { manifest, entries, conflicts } = inspectUpdate()
   if (conflicts.length > 0) {
-    throw new Error(`Update blocked because repository files conflict with CNAD ownership:\n- ${conflicts.join('\n- ')}`)
+    throw new Error(
+      `Update blocked because repository files conflict with CNAD ownership:\n- ${conflicts.join('\n- ')}`,
+    )
   }
 
   preflightUpdateMutations(manifest, entries)
@@ -416,7 +442,10 @@ function update() {
 
     if (!manifestMatchesEntries(manifest, entries)) writeManifest(entries)
   } catch (error) {
-    throw new Error(`CNAD update failed after repository files may have been modified: ${error.message}\nReview the working tree with \`git status\` and \`git diff\`, then restore CNAD-managed changes with Git if needed.`, { cause: error })
+    throw new Error(
+      `CNAD update failed after repository files may have been modified: ${error.message}\nReview the working tree with \`git status\` and \`git diff\`, then restore CNAD-managed changes with Git if needed.`,
+      { cause: error },
+    )
   }
 
   console.log(`CNAD updated to ${packageVersion}.`)

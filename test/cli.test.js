@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  linkSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -26,7 +36,18 @@ function git(cwd, ...args) {
 
 function commitAll(cwd) {
   git(cwd, 'add', '--all')
-  git(cwd, '-c', 'user.name=CNAD Test', '-c', 'user.email=cnad@example.invalid', 'commit', '--no-gpg-sign', '--quiet', '-m', 'test fixture')
+  git(
+    cwd,
+    '-c',
+    'user.name=CNAD Test',
+    '-c',
+    'user.email=cnad@example.invalid',
+    'commit',
+    '--no-gpg-sign',
+    '--quiet',
+    '-m',
+    'test fixture',
+  )
 }
 
 function normalizedHash(content) {
@@ -331,33 +352,37 @@ test('non-regular managed targets are rejected before they can block or be read'
   assert.match(update.stderr, /method\/review\.md is not a regular file/)
 })
 
-test('update skips write checks and rewrites for clean unchanged managed files', { skip: process.getuid?.() === 0 }, () => {
-  const cwd = tempRepo()
-  assert.equal(run(cwd, 'init').status, 0)
+test(
+  'update skips write checks and rewrites for clean unchanged managed files',
+  { skip: process.getuid?.() === 0 },
+  () => {
+    const cwd = tempRepo()
+    assert.equal(run(cwd, 'init').status, 0)
 
-  const methodDir = join(cwd, '.cnad', 'method')
-  const unchangedPath = join(methodDir, 'review.md')
-  const unchangedContent = readFileSync(unchangedPath, 'utf8')
-  chmodSync(unchangedPath, 0o444)
+    const methodDir = join(cwd, '.cnad', 'method')
+    const unchangedPath = join(methodDir, 'review.md')
+    const unchangedContent = readFileSync(unchangedPath, 'utf8')
+    chmodSync(unchangedPath, 0o444)
 
-  const changedPath = join(methodDir, 'workflow.md')
-  const oldContent = '# Old workflow\n'
-  writeFileSync(changedPath, oldContent)
-  const manifestPath = join(cwd, '.cnad', 'version.json')
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  manifest.files['method/workflow.md'] = normalizedHash(oldContent)
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-  commitAll(cwd)
+    const changedPath = join(methodDir, 'workflow.md')
+    const oldContent = '# Old workflow\n'
+    writeFileSync(changedPath, oldContent)
+    const manifestPath = join(cwd, '.cnad', 'version.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.files['method/workflow.md'] = normalizedHash(oldContent)
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    commitAll(cwd)
 
-  try {
-    const update = run(cwd, 'update')
-    assert.equal(update.status, 0, update.stderr)
-    assert.equal(readFileSync(unchangedPath, 'utf8'), unchangedContent)
-    assert.notEqual(readFileSync(changedPath, 'utf8'), oldContent)
-  } finally {
-    chmodSync(unchangedPath, 0o644)
-  }
-})
+    try {
+      const update = run(cwd, 'update')
+      assert.equal(update.status, 0, update.stderr)
+      assert.equal(readFileSync(unchangedPath, 'utf8'), unchangedContent)
+      assert.notEqual(readFileSync(changedPath, 'utf8'), oldContent)
+    } finally {
+      chmodSync(unchangedPath, 0o644)
+    }
+  },
+)
 
 test('update failure before mutation leaves obsolete managed files untouched', () => {
   const cwd = tempRepo()
