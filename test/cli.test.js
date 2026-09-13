@@ -9,11 +9,24 @@ import test from 'node:test'
 const cli = resolve('bin/cnad.js')
 
 function tempRepo() {
-  return mkdtempSync(join(tmpdir(), 'cnad-'))
+  const cwd = mkdtempSync(join(tmpdir(), 'cnad-'))
+  assert.equal(spawnSync('git', ['init', '--quiet'], { cwd }).status, 0)
+  return cwd
 }
 
 function run(cwd, ...args) {
   return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8' })
+}
+
+function git(cwd, ...args) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stderr)
+  return result
+}
+
+function commitAll(cwd) {
+  git(cwd, 'add', '--all')
+  git(cwd, '-c', 'user.name=CNAD Test', '-c', 'user.email=cnad@example.invalid', 'commit', '--no-gpg-sign', '--quiet', '-m', 'test fixture')
 }
 
 function normalizedHash(content) {
@@ -334,6 +347,7 @@ test('update skips write checks and rewrites for clean unchanged managed files',
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   manifest.files['method/workflow.md'] = normalizedHash(oldContent)
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  commitAll(cwd)
 
   try {
     const update = run(cwd, 'update')

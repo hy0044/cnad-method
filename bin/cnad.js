@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto'
-import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { accessSync, appendFileSync, constants, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -191,6 +192,27 @@ function writeManifest(entries) {
   writeFileSync(manifestPath, `${JSON.stringify({ version: packageVersion, files }, null, 2)}\n`)
 }
 
+function manifestMatchesEntries(manifest, entries) {
+  const files = Object.fromEntries(entries.map(({ rel, hash: fileHash }) => [`method/${rel}`, fileHash]))
+  return manifest.version === packageVersion && JSON.stringify(manifest.files ?? {}) === JSON.stringify(files)
+}
+
+function assertGitRepository() {
+  const result = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd, encoding: 'utf8' })
+  if (result.status !== 0 || result.stdout.trim() !== 'true') {
+    throw new Error('CNAD update requires a Git repository.')
+  }
+}
+
+function isRecoverableByGit(target) {
+  const path = relative(cwd, target).replaceAll('\\', '/')
+  const tracked = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', path], { cwd, stdio: 'ignore' })
+  if (tracked.status !== 0) return false
+
+  const unchanged = spawnSync('git', ['--literal-pathspecs', 'diff', '--quiet', '--', path], { cwd, stdio: 'ignore' })
+  return unchanged.status === 0
+}
+
 function appendAgentsIntegration() {
   assertSafeRepositoryPath(agentsPath)
   if (!existsSync(agentsPath)) {
@@ -303,6 +325,25 @@ function obsoleteManagedPaths(manifest, entries) {
 }
 
 function preflightUpdateMutations(manifest, entries) {
+  const existingTargets = []
+  if (!manifestMatchesEntries(manifest, entries)) existingTargets.push(manifestPath)
+
+  for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
+    const target = join(cnadRoot, managedPath)
+    if (existsSync(target)) existingTargets.push(target)
+  }
+
+  for (const entry of entriesRequiringWrite(manifest, entries)) {
+    const target = managedTarget(entry.rel)
+    if (existsSync(target)) existingTargets.push(target)
+  }
+
+  const unrecoverable = existingTargets.filter((target) => !isRecoverableByGit(target))
+  if (unrecoverable.length > 0) {
+    const paths = unrecoverable.map((target) => relative(cwd, target).replaceAll('\\', '/'))
+    throw new Error(`CNAD update requires existing managed files to be recoverable by Git.\nThe following files cannot be safely recovered:\n- ${paths.join('\n- ')}\nCommit or otherwise place the CNAD-managed files under Git before running update.`)
+  }
+
   assertSafeRepositoryPath(manifestPath)
   accessSync(manifestPath, constants.R_OK | constants.W_OK)
 
@@ -322,59 +363,6 @@ function preflightUpdateMutations(manifest, entries) {
     } else {
       accessSync(nearestExistingParent(target), constants.W_OK)
     }
-  }
-}
-
-function backupPathFor(target, index) {
-  let attempt = 0
-  while (true) {
-    const suffix = attempt === 0 ? '' : `-${attempt}`
-    const backup = `${target}.cnad-update-backup-${process.pid}-${index}${suffix}`
-    assertSafeRepositoryPath(backup)
-    if (!existsSync(backup)) return backup
-    attempt += 1
-  }
-}
-
-function rollbackStagedRemovals(staged) {
-  let rollbackError = null
-  for (const { target, backup } of [...staged].reverse()) {
-    try {
-      if (existsSync(backup) && !existsSync(target)) renameSync(backup, target)
-    } catch (error) {
-      rollbackError ??= error
-    }
-  }
-  if (rollbackError) {
-    throw new Error(`Failed to roll back staged managed-file removals: ${rollbackError.message}`)
-  }
-}
-
-function stageObsoleteRemovals(manifest, entries) {
-  const staged = []
-  try {
-    for (const [index, managedPath] of obsoleteManagedPaths(manifest, entries).entries()) {
-      const target = join(cnadRoot, managedPath)
-      assertSafeRepositoryPath(target)
-      if (!existsSync(target)) continue
-      const backup = backupPathFor(target, index)
-      renameSync(target, backup)
-      staged.push({ target, backup })
-    }
-    return staged
-  } catch (error) {
-    try {
-      rollbackStagedRemovals(staged)
-    } catch (rollbackError) {
-      throw new Error(`${error.message}; ${rollbackError.message}`)
-    }
-    throw error
-  }
-}
-
-function discardStagedRemovals(staged) {
-  for (const { backup } of staged) {
-    if (existsSync(backup)) unlinkSync(backup)
   }
 }
 
@@ -399,15 +387,20 @@ function checkUpdate() {
 }
 
 function update() {
+  assertGitRepository()
   const { manifest, entries, conflicts } = inspectUpdate()
   if (conflicts.length > 0) {
     throw new Error(`Update blocked because repository files conflict with CNAD ownership:\n- ${conflicts.join('\n- ')}`)
   }
 
   preflightUpdateMutations(manifest, entries)
-  const stagedRemovals = stageObsoleteRemovals(manifest, entries)
 
   try {
+    for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
+      const target = join(cnadRoot, managedPath)
+      if (existsSync(target)) unlinkSync(target)
+    }
+
     for (const entry of entriesRequiringWrite(manifest, entries)) {
       const target = managedTarget(entry.rel)
       ensureParent(target)
@@ -415,17 +408,11 @@ function update() {
       writeFileSync(target, entry.content)
     }
 
-    writeManifest(entries)
+    if (!manifestMatchesEntries(manifest, entries)) writeManifest(entries)
   } catch (error) {
-    try {
-      rollbackStagedRemovals(stagedRemovals)
-    } catch (rollbackError) {
-      throw new Error(`${error.message}; ${rollbackError.message}`)
-    }
-    throw error
+    throw new Error(`CNAD update failed after repository files may have been modified: ${error.message}\nReview the working tree with \`git status\` and \`git diff\`, then restore CNAD-managed changes with Git if needed.`, { cause: error })
   }
 
-  discardStagedRemovals(stagedRemovals)
   console.log(`CNAD updated to ${packageVersion}.`)
   console.log('Project-owned files were not modified.')
 }
