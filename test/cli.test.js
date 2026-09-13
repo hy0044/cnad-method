@@ -26,7 +26,7 @@ function git(cwd, ...args) {
 
 function commitAll(cwd) {
   git(cwd, 'add', '--all')
-  git(cwd, '-c', 'user.name=CNAD Test', '-c', 'user.email=cnad@example.invalid', 'commit', '--quiet', '-m', 'test fixture')
+  git(cwd, '-c', 'user.name=CNAD Test', '-c', 'user.email=cnad@example.invalid', 'commit', '--no-gpg-sign', '--quiet', '-m', 'test fixture')
 }
 
 function normalizedHash(content) {
