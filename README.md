@@ -32,13 +32,21 @@ Apply it:
 pnpm dlx cnad-method update
 ```
 
-CNAD records hashes of the files it owns. If a CNAD-managed file has been edited locally, an update is blocked instead of silently overwriting the change.
+CNAD records hashes of the files it owns. In an ordinary Git-managed workflow, if a CNAD-managed file has been edited locally, an update is blocked instead of silently overwriting the change.
 
 Managed-file hashes normalize text line endings, so a normal Git checkout using CRLF on Windows does not count as a local edit. Manifest paths are also validated before any managed file is read or removed; only normalized descendants of `.cnad/method/` are accepted.
 
 Core ownership rule:
 
 > **CNAD-owned files can be upgraded automatically. Project-owned files must never be silently overwritten.**
+
+### v0.1 update-safety guarantee
+
+`cnad update` assumes an ordinary Git-managed working tree. The repository must be a Git repository, and existing CNAD-managed files must be tracked and have no uncommitted changes detectable by normal Git diff semantics. Under those conditions, ordinary local modifications are rejected before an update.
+
+Special Git index states and customizations are outside the v0.1 update-safety guarantee. This includes `skip-worktree`, `assume-unchanged`, custom clean/smudge filter edge cases, and other special index configurations.
+
+Git is the rollback boundary: CNAD supports ordinary Git-managed workflows rather than reimplementing Git or guaranteeing recovery for every specialized Git configuration.
 
 ## First dogfooding target
 
