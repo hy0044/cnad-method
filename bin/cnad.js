@@ -367,7 +367,8 @@ function preflightUpdateMutations(manifest, entries) {
 }
 
 function checkUpdate() {
-  const { manifest, conflicts, changes } = inspectUpdate()
+  assertGitRepository()
+  const { manifest, entries, conflicts, changes } = inspectUpdate()
   console.log(`Installed: ${manifest.version ?? 'unknown'}`)
   console.log(`Target:    ${packageVersion}`)
 
@@ -383,7 +384,12 @@ function checkUpdate() {
     console.log('\nNo CNAD-managed file changes detected.')
   }
 
-  if (conflicts.length > 0) process.exitCode = 2
+  if (conflicts.length > 0) {
+    process.exitCode = 2
+    return
+  }
+
+  preflightUpdateMutations(manifest, entries)
 }
 
 function update() {

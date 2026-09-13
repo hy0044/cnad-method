@@ -46,7 +46,7 @@ Core ownership rule:
 
 Special Git index states and customizations are outside the v0.1 update-safety guarantee. This includes `skip-worktree`, `assume-unchanged`, custom clean/smudge filter edge cases, and other special index configurations.
 
-Git is the rollback boundary: CNAD supports ordinary Git-managed workflows rather than reimplementing Git or guaranteeing recovery for every specialized Git configuration.
+Git is the rollback boundary: CNAD supports ordinary Git-managed workflows rather than reimplementing Git or guaranteeing recovery for every specialized Git configuration. CNAD does not provide transactional rollback for failed updates. After a failed update, inspect the working tree with `git status` and `git diff`, then restore or clean changes as appropriate before retrying (for example, preview untracked cleanup with `git clean -n -- .cnad/`).
 
 ## First dogfooding target
 
