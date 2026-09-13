@@ -206,16 +206,11 @@ function assertGitRepository() {
 
 function isRecoverableByGit(target) {
   const path = relative(cwd, target).replaceAll('\\', '/')
-  const indexed = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--stage', '--error-unmatch', '-z', '--', path], { cwd })
-  if (indexed.status !== 0) return false
+  const tracked = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', path], { cwd, stdio: 'ignore' })
+  if (tracked.status !== 0) return false
 
-  const records = indexed.stdout.subarray(0, -1).toString().split('\0')
-  if (records.length !== 1) return false
-  const match = /^(?:\d+) ([0-9a-f]+) 0\t/.exec(records[0])
-  if (!match) return false
-
-  const blob = spawnSync('git', ['cat-file', 'blob', match[1]], { cwd })
-  return blob.status === 0 && readFileSync(target).equals(blob.stdout)
+  const unchanged = spawnSync('git', ['--literal-pathspecs', 'diff', '--quiet', '--', path], { cwd, stdio: 'ignore' })
+  return unchanged.status === 0
 }
 
 function appendAgentsIntegration() {
