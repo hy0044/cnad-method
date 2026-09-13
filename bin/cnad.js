@@ -204,6 +204,15 @@ function assertGitRepository() {
   }
 }
 
+function isRecoverableByGit(target) {
+  const path = relative(cwd, target).replaceAll('\\', '/')
+  const tracked = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', path], { cwd, stdio: 'ignore' })
+  if (tracked.status !== 0) return false
+
+  const unchanged = spawnSync('git', ['--literal-pathspecs', 'diff', '--quiet', '--', path], { cwd, stdio: 'ignore' })
+  return unchanged.status === 0
+}
+
 function appendAgentsIntegration() {
   assertSafeRepositoryPath(agentsPath)
   if (!existsSync(agentsPath)) {
@@ -316,6 +325,25 @@ function obsoleteManagedPaths(manifest, entries) {
 }
 
 function preflightUpdateMutations(manifest, entries) {
+  const existingTargets = []
+  if (!manifestMatchesEntries(manifest, entries)) existingTargets.push(manifestPath)
+
+  for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
+    const target = join(cnadRoot, managedPath)
+    if (existsSync(target)) existingTargets.push(target)
+  }
+
+  for (const entry of entriesRequiringWrite(manifest, entries)) {
+    const target = managedTarget(entry.rel)
+    if (existsSync(target)) existingTargets.push(target)
+  }
+
+  const unrecoverable = existingTargets.filter((target) => !isRecoverableByGit(target))
+  if (unrecoverable.length > 0) {
+    const paths = unrecoverable.map((target) => relative(cwd, target).replaceAll('\\', '/'))
+    throw new Error(`CNAD update requires existing managed files to be recoverable by Git.\nThe following files cannot be safely recovered:\n- ${paths.join('\n- ')}\nCommit or otherwise place the CNAD-managed files under Git before running update.`)
+  }
+
   assertSafeRepositoryPath(manifestPath)
   accessSync(manifestPath, constants.R_OK | constants.W_OK)
 
