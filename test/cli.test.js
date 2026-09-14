@@ -257,6 +257,22 @@ test('complete CRLF CNAD integration is recognized without rewriting AGENTS.md',
   assert.deepEqual(readFileSync(agentsPath), original)
 })
 
+test('complete CNAD integration at EOF is recognized without rewriting AGENTS.md', () => {
+  const cwd = tempRepo()
+  const agentsPath = join(cwd, 'AGENTS.md')
+  const original = Buffer.from(
+    '# Existing instructions\n\n<!-- cnad:start -->\n## CNAD\n\nFollow the CNAD method in `.cnad/method/`.\nProject-specific CNAD guidance belongs in `.cnad/project.md`.\n<!-- cnad:end -->',
+  )
+  writeFileSync(agentsPath, original)
+
+  const result = run(cwd, 'init')
+  assert.equal(result.status, 0, result.stderr)
+
+  const updated = readFileSync(agentsPath)
+  assert.deepEqual(updated, original)
+  assert.equal(updated.toString('latin1').match(/<!-- cnad:start -->/g)?.length, 1)
+})
+
 test('complete CNAD integration does not require AGENTS.md write access', { skip: process.getuid?.() === 0 }, () => {
   const cwd = tempRepo()
   const agentsPath = join(cwd, 'AGENTS.md')

@@ -31,6 +31,7 @@ const agentsPath = join(cwd, 'AGENTS.md')
 
 const integrationBlock = `<!-- cnad:start -->\n## CNAD\n\nFollow the CNAD method in \`.cnad/method/\`.\nProject-specific CNAD guidance belongs in \`.cnad/project.md\`.\n<!-- cnad:end -->\n`
 const integrationBlockBytes = Buffer.from(integrationBlock)
+const integrationBlockAtEofBytes = integrationBlockBytes.subarray(0, -1)
 const integrationStartBytes = Buffer.from('<!-- cnad:start -->')
 const integrationEndBytes = Buffer.from('<!-- cnad:end -->')
 
@@ -110,7 +111,9 @@ function normalizeAgentLineEndings(bytes) {
 
 function inspectAgentsIntegration(bytes) {
   const normalized = normalizeAgentLineEndings(bytes)
-  const hasBlock = normalized.indexOf(integrationBlockBytes) !== -1
+  const hasBlock =
+    normalized.indexOf(integrationBlockBytes) !== -1 ||
+    normalized.subarray(-integrationBlockAtEofBytes.length).equals(integrationBlockAtEofBytes)
   const hasStart = normalized.indexOf(integrationStartBytes) !== -1
   const hasEnd = normalized.indexOf(integrationEndBytes) !== -1
 
