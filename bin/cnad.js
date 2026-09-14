@@ -368,7 +368,7 @@ function preflightUpdateMutations(manifest, entries) {
   }
 
   assertSafeRepositoryPath(manifestPath)
-  accessSync(manifestPath, constants.R_OK | constants.W_OK)
+  if (!manifestMatchesEntries(manifest, entries)) accessSync(manifestPath, constants.R_OK | constants.W_OK)
 
   for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
     const target = join(cnadRoot, managedPath)
