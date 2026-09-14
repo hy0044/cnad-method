@@ -384,6 +384,28 @@ test(
   },
 )
 
+test('no-op update skips manifest write checks and rewrites', { skip: process.getuid?.() === 0 }, () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+  commitAll(cwd)
+
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifestBefore = readFileSync(manifestPath, 'utf8')
+  chmodSync(manifestPath, 0o444)
+
+  try {
+    const check = run(cwd, 'update', '--check')
+    assert.equal(check.status, 0, check.stderr)
+    assert.match(check.stdout, /No CNAD-managed file changes detected/)
+
+    const update = run(cwd, 'update')
+    assert.equal(update.status, 0, update.stderr)
+    assert.equal(readFileSync(manifestPath, 'utf8'), manifestBefore)
+  } finally {
+    chmodSync(manifestPath, 0o644)
+  }
+})
+
 test('update failure before mutation leaves obsolete managed files untouched', () => {
   const cwd = tempRepo()
   assert.equal(run(cwd, 'init').status, 0)
