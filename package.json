@@ -1,0 +1,29 @@
+{
+  "name": "cnad-method",
+  "version": "0.1.0",
+  "description": "Context-Native AI Development repository integration CLI",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cnad": "./bin/cnad.js"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "prettier": "^3.6.2"
+  }
+}
