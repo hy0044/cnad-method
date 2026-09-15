@@ -1,0 +1,51 @@
+name: Publish to npm
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.repository == 'hy0044/cnad-method'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the released tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must have the form vX.Y.Z; received: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+          package_version="$(node -p "require('./package.json').version")"
+          release_version="${RELEASE_TAG#v}"
+          if [[ "$release_version" != "$package_version" ]]; then
+            echo "Release tag version ($release_version) does not match package.json ($package_version)." >&2
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm pack --dry-run
+      - name: Publish package
+        run: npm publish --access public --provenance
