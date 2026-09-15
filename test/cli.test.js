@@ -17,6 +17,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
 const cli = resolve('bin/cnad.js')
+const packageVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version
 
 function tempRepo() {
   const cwd = mkdtempSync(join(tmpdir(), 'cnad-'))
@@ -69,7 +70,7 @@ test('init installs managed files without taking ownership of project guidance',
   assert.match(project, /project-owned/)
 
   const manifest = JSON.parse(readFileSync(join(cwd, '.cnad', 'version.json'), 'utf8'))
-  assert.equal(manifest.version, '0.1.0')
+  assert.equal(manifest.version, packageVersion)
   assert.ok(manifest.files['method/review.md'])
 })
 

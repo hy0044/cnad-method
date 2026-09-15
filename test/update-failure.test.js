@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
 const cli = resolve('bin/cnad.js')
+const packageVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version
 
 function tempRepo() {
   const cwd = mkdtempSync(join(tmpdir(), 'cnad-update-'))
@@ -81,7 +82,7 @@ syncBuiltinESMExports()
   assert.equal(update.status, 0, update.stderr)
   assert.notEqual(readFileSync(changedPath, 'utf8'), oldContent)
   assert.equal(readFileSync(projectPath, 'utf8'), projectContent)
-  assert.equal(JSON.parse(readFileSync(manifestPath, 'utf8')).version, '0.1.0')
+  assert.equal(JSON.parse(readFileSync(manifestPath, 'utf8')).version, packageVersion)
 })
 
 test('mid-update write failure reports Git recovery guidance without success', () => {
