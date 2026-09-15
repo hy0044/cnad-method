@@ -26,6 +26,14 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
+      - name: Install and verify staged publishing toolchain
+        run: |
+          npm install --global npm@11.15.0
+          node --eval "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 14)) process.exit(1)"
+          test "$(npm --version)" = "11.15.0"
+          node --version
+          npm --version
+
       - name: Verify release tag matches package version
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -47,5 +55,5 @@ jobs:
       - run: npm run lint
       - run: npm run format:check
       - run: npm pack --dry-run
-      - name: Publish package
-        run: npm publish --access public --provenance
+      - name: Stage package for human approval
+        run: npm stage publish
