@@ -62,3 +62,7 @@ The first real consumer is [Moura](https://github.com/hy0044/moura). The package
 - review broadly, change narrowly
 
 See the installed files under `.cnad/method/` for the repository-facing workflow.
+
+## Releases
+
+Maintainer instructions for publishing releases to npm, including the one-time npm account, initial publication, and Trusted Publisher setup, are in [the release guide](docs/releasing.md).
