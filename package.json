@@ -1,6 +1,6 @@
 {
   "name": "cnad-method",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Context-Native AI Development repository integration CLI",
   "license": "MIT",
   "type": "module",
@@ -25,5 +25,9 @@
   "devDependencies": {
     "eslint": "^9.39.5",
     "prettier": "^3.6.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hy0044/cnad-method.git"
   }
 }
