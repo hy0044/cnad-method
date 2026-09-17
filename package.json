@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "cnad": "./bin/cnad.js"
+    "cnad": "bin/cnad.js"
   },
   "files": [
     "bin",
@@ -28,6 +28,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hy0044/cnad-method.git"
+    "url": "git+https://github.com/hy0044/cnad-method.git"
   }
 }
