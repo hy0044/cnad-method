@@ -5,10 +5,10 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "cnad": "bin/cnad.js"
+    "cnad": "dist/cnad.js"
   },
   "files": [
-    "bin",
+    "dist",
     "templates",
     "README.md",
     "LICENSE"
@@ -17,14 +17,19 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@types/node": "^26.6.1",
     "eslint": "^9.39.5",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
   },
   "repository": {
     "type": "git",

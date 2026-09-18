@@ -6,7 +6,7 @@ import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
-const cli = resolve('bin/cnad.js')
+const cli = resolve('dist/cnad.js')
 const packageVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version
 
 function tempRepo() {
