@@ -18,8 +18,52 @@ import {
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+interface PackageMetadata {
+  version: string
+}
+
+interface Manifest {
+  version?: string
+  files?: Record<string, string>
+}
+
+interface TemplateEntry {
+  rel: string
+  content: string
+  hash: string
+}
+
+interface UpdateInspection {
+  manifest: Manifest
+  entries: TemplateEntry[]
+  conflicts: string[]
+  changes: string[]
+}
+
+type AgentsIntegrationState = 'complete' | 'missing'
+type AgentsIntegrationResult = 'created' | 'unchanged' | 'appended'
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function isErrorWithCode(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && error.code === code
+}
+
+function parsePackageMetadata(value: unknown): PackageMetadata {
+  if (!isRecord(value) || typeof value.version !== 'string') {
+    throw new Error('Invalid package metadata: `version` must be a string.')
+  }
+  return { version: value.version }
+}
+
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const packageJson = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'))
+const packageJson = parsePackageMetadata(JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')))
 const packageVersion = packageJson.version
 const templatesRoot = join(packageRoot, 'templates', 'method')
 const cwd = process.cwd()
@@ -35,16 +79,16 @@ const integrationBlockAtEofBytes = integrationBlockBytes.subarray(0, -1)
 const integrationStartBytes = Buffer.from('<!-- cnad:start -->')
 const integrationEndBytes = Buffer.from('<!-- cnad:end -->')
 
-function normalizeText(content) {
+function normalizeText(content: string): string {
   return content.replace(/\r\n?/g, '\n')
 }
 
-function hash(content) {
+function hash(content: string): string {
   return createHash('sha256').update(normalizeText(content)).digest('hex')
 }
 
-function walkFiles(root) {
-  const files = []
+function walkFiles(root: string): string[] {
+  const files: string[] = []
   for (const entry of readdirSync(root).sort()) {
     const full = join(root, entry)
     if (statSync(full).isDirectory()) files.push(...walkFiles(full))
@@ -53,7 +97,7 @@ function walkFiles(root) {
   return files
 }
 
-function templateEntries() {
+function templateEntries(): TemplateEntry[] {
   return walkFiles(templatesRoot).map((source) => {
     const rel = relative(templatesRoot, source).replaceAll('\\', '/')
     const content = readFileSync(source, 'utf8')
@@ -61,24 +105,24 @@ function templateEntries() {
   })
 }
 
-function managedTarget(rel) {
+function managedTarget(rel: string): string {
   return join(methodRoot, rel)
 }
 
-function ensureParent(path) {
+function ensureParent(path: string): void {
   mkdirSync(dirname(path), { recursive: true })
 }
 
-function lstatIfExists(path) {
+function lstatIfExists(path: string) {
   try {
     return lstatSync(path)
   } catch (error) {
-    if (error?.code === 'ENOENT') return null
+    if (isErrorWithCode(error, 'ENOENT')) return null
     throw error
   }
 }
 
-function assertSafeRepositoryPath(target) {
+function assertSafeRepositoryPath(target: string): void {
   const rel = relative(cwd, target)
   if (rel === '' || isAbsolute(rel) || rel === '..' || rel.startsWith(`..${sep}`)) {
     throw new Error(`Refusing path outside repository: ${target}`)
@@ -99,17 +143,17 @@ function assertSafeRepositoryPath(target) {
   }
 }
 
-function nearestExistingParent(target) {
+function nearestExistingParent(target: string): string {
   let current = dirname(target)
   while (!existsSync(current)) current = dirname(current)
   return current
 }
 
-function normalizeAgentLineEndings(bytes) {
+function normalizeAgentLineEndings(bytes: Buffer): Buffer {
   return Buffer.from(bytes.toString('latin1').replace(/\r\n?/g, '\n'), 'latin1')
 }
 
-function inspectAgentsIntegration(bytes) {
+function inspectAgentsIntegration(bytes: Buffer): AgentsIntegrationState {
   const normalized = normalizeAgentLineEndings(bytes)
   const hasBlock =
     normalized.indexOf(integrationBlockBytes) !== -1 ||
@@ -124,7 +168,7 @@ function inspectAgentsIntegration(bytes) {
   return 'missing'
 }
 
-function validateAgentsIntegrationTarget() {
+function validateAgentsIntegrationTarget(): void {
   assertSafeRepositoryPath(agentsPath)
   const info = lstatIfExists(agentsPath)
   if (!info) {
@@ -140,7 +184,7 @@ function validateAgentsIntegrationTarget() {
   if (state === 'missing') accessSync(agentsPath, constants.W_OK)
 }
 
-function validateProjectGuidanceTarget() {
+function validateProjectGuidanceTarget(): void {
   assertSafeRepositoryPath(projectPath)
   const info = lstatIfExists(projectPath)
   if (!info) {
@@ -158,7 +202,7 @@ function validateProjectGuidanceTarget() {
   accessSync(projectPath, constants.R_OK)
 }
 
-function validateManifestInstallTarget() {
+function validateManifestInstallTarget(): void {
   assertSafeRepositoryPath(manifestPath)
   if (existsSync(manifestPath)) throw new Error('CNAD is already initialized in this repository.')
   const parent = nearestExistingParent(manifestPath)
@@ -169,30 +213,44 @@ function validateManifestInstallTarget() {
   accessSync(parent, constants.W_OK)
 }
 
-function isValidManagedPath(managedPath) {
-  if (typeof managedPath !== 'string' || managedPath.includes('\\')) return false
+function isValidManagedPath(managedPath: string): boolean {
+  if (managedPath.includes('\\')) return false
   const parts = managedPath.split('/')
   return (
     parts.length > 1 && parts[0] === 'method' && parts.every((part) => part !== '' && part !== '.' && part !== '..')
   )
 }
 
-function validateManifest(manifest) {
-  if (manifest.files == null) return manifest
-  if (typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
+function validateManifest(value: unknown): Manifest {
+  if (!isRecord(value)) throw new Error('Invalid CNAD manifest: expected an object.')
+
+  const { version, files } = value
+  if (version != null && typeof version !== 'string') {
+    throw new Error('Invalid CNAD manifest: `version` must be a string.')
+  }
+  const validatedVersion = typeof version === 'string' ? version : undefined
+  if (files == null) return validatedVersion === undefined ? {} : { version: validatedVersion }
+  if (!isRecord(files)) {
     throw new Error('Invalid CNAD manifest: `files` must be an object.')
   }
 
-  for (const managedPath of Object.keys(manifest.files)) {
+  const validatedFiles: Record<string, string> = {}
+  for (const [managedPath, fileHash] of Object.entries(files)) {
     if (!isValidManagedPath(managedPath)) {
       throw new Error(`Invalid CNAD manifest path: ${managedPath}`)
     }
+    if (typeof fileHash !== 'string') {
+      throw new Error(`Invalid CNAD manifest hash for path: ${managedPath}`)
+    }
+    validatedFiles[managedPath] = fileHash
   }
 
-  return manifest
+  return validatedVersion === undefined
+    ? { files: validatedFiles }
+    : { version: validatedVersion, files: validatedFiles }
 }
 
-function readManifest() {
+function readManifest(): Manifest {
   assertSafeRepositoryPath(manifestPath)
   const info = lstatIfExists(manifestPath)
   if (!info) throw new Error('CNAD is not initialized in this repository. Run `cnad init` first.')
@@ -201,7 +259,7 @@ function readManifest() {
   return validateManifest(JSON.parse(readFileSync(manifestPath, 'utf8')))
 }
 
-function writeManifest(entries) {
+function writeManifest(entries: TemplateEntry[]): void {
   assertSafeRepositoryPath(manifestPath)
   const files = Object.fromEntries(entries.map(({ rel, hash: fileHash }) => [`method/${rel}`, fileHash]))
   ensureParent(manifestPath)
@@ -209,19 +267,19 @@ function writeManifest(entries) {
   writeFileSync(manifestPath, `${JSON.stringify({ version: packageVersion, files }, null, 2)}\n`)
 }
 
-function manifestMatchesEntries(manifest, entries) {
+function manifestMatchesEntries(manifest: Manifest, entries: TemplateEntry[]): boolean {
   const files = Object.fromEntries(entries.map(({ rel, hash: fileHash }) => [`method/${rel}`, fileHash]))
   return manifest.version === packageVersion && JSON.stringify(manifest.files ?? {}) === JSON.stringify(files)
 }
 
-function assertGitRepository() {
+function assertGitRepository(): void {
   const result = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd, encoding: 'utf8' })
   if (result.status !== 0 || result.stdout.trim() !== 'true') {
     throw new Error('CNAD update requires a Git repository.')
   }
 }
 
-function isRecoverableByGit(target) {
+function isRecoverableByGit(target: string): boolean {
   const path = relative(cwd, target).replaceAll('\\', '/')
   const tracked = spawnSync('git', ['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', path], {
     cwd,
@@ -233,7 +291,7 @@ function isRecoverableByGit(target) {
   return unchanged.status === 0
 }
 
-function appendAgentsIntegration() {
+function appendAgentsIntegration(): AgentsIntegrationResult {
   assertSafeRepositoryPath(agentsPath)
   if (!existsSync(agentsPath)) {
     writeFileSync(agentsPath, `# Repository instructions\n\n${integrationBlock}`)
@@ -251,7 +309,7 @@ function appendAgentsIntegration() {
   return 'appended'
 }
 
-function init() {
+function init(): void {
   validateManifestInstallTarget()
   validateProjectGuidanceTarget()
   validateAgentsIntegrationTarget()
@@ -292,11 +350,11 @@ function init() {
   console.log(`AGENTS.md: ${agents}`)
 }
 
-function inspectUpdate() {
+function inspectUpdate(): UpdateInspection {
   const manifest = readManifest()
   const entries = templateEntries()
-  const conflicts = []
-  const changes = []
+  const conflicts: string[] = []
+  const changes: string[] = []
 
   for (const [managedPath, recordedHash] of Object.entries(manifest.files ?? {})) {
     const target = join(cnadRoot, managedPath)
@@ -339,17 +397,17 @@ function inspectUpdate() {
   return { manifest, entries, conflicts, changes }
 }
 
-function entriesRequiringWrite(manifest, entries) {
+function entriesRequiringWrite(manifest: Manifest, entries: TemplateEntry[]): TemplateEntry[] {
   return entries.filter((entry) => manifest.files?.[`method/${entry.rel}`] !== entry.hash)
 }
 
-function obsoleteManagedPaths(manifest, entries) {
+function obsoleteManagedPaths(manifest: Manifest, entries: TemplateEntry[]): string[] {
   const nextPaths = new Set(entries.map(({ rel }) => `method/${rel}`))
   return Object.keys(manifest.files ?? {}).filter((managedPath) => !nextPaths.has(managedPath))
 }
 
-function preflightUpdateMutations(manifest, entries) {
-  const existingTargets = []
+function preflightUpdateMutations(manifest: Manifest, entries: TemplateEntry[]): void {
+  const existingTargets: string[] = []
   if (!manifestMatchesEntries(manifest, entries)) existingTargets.push(manifestPath)
 
   for (const managedPath of obsoleteManagedPaths(manifest, entries)) {
@@ -393,7 +451,7 @@ function preflightUpdateMutations(manifest, entries) {
   }
 }
 
-function checkUpdate() {
+function checkUpdate(): void {
   assertGitRepository()
   const { manifest, entries, conflicts, changes } = inspectUpdate()
   console.log(`Installed: ${manifest.version ?? 'unknown'}`)
@@ -419,7 +477,7 @@ function checkUpdate() {
   preflightUpdateMutations(manifest, entries)
 }
 
-function update() {
+function update(): void {
   assertGitRepository()
   const { manifest, entries, conflicts } = inspectUpdate()
   if (conflicts.length > 0) {
@@ -446,7 +504,7 @@ function update() {
     if (!manifestMatchesEntries(manifest, entries)) writeManifest(entries)
   } catch (error) {
     throw new Error(
-      `CNAD update failed after repository files may have been modified: ${error.message}\nReview the working tree with \`git status\` and \`git diff\`, then restore CNAD-managed changes with Git if needed.`,
+      `CNAD update failed after repository files may have been modified: ${errorMessage(error)}\nReview the working tree with \`git status\` and \`git diff\`, then restore CNAD-managed changes with Git if needed.`,
       { cause: error },
     )
   }
@@ -455,11 +513,11 @@ function update() {
   console.log('Project-owned files were not modified.')
 }
 
-function usage() {
+function usage(): void {
   console.log(`CNAD ${packageVersion}\n\nUsage:\n  cnad init\n  cnad update --check\n  cnad update\n`)
 }
 
-function main() {
+function main(): void {
   const [, , command, ...args] = process.argv
 
   if (!command || command === '--help' || command === '-h') return usage()
@@ -474,6 +532,6 @@ function main() {
 try {
   main()
 } catch (error) {
-  console.error(`cnad: ${error.message}`)
+  console.error(`cnad: ${errorMessage(error)}`)
   process.exitCode = 1
 }
