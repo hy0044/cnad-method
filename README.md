@@ -2,9 +2,17 @@
 
 **CNAD — Context-Native AI Development** is an experimental development method for AI-assisted software engineering.
 
-CNAD preserves useful implementation context for as long as it adds value, scales process with risk, and introduces a deliberate context boundary for independent review.
+CNAD designs useful working context before implementation, preserves that context for as long as it adds value, scales process with risk, and introduces a deliberate context boundary for independent review.
 
-> Preserve context during implementation. Reset context for independent judgment.
+> **Design the context. Preserve it while building. Break it when judging.**
+
+CNAD separates three responsibilities: the **Strategist** helps turn human intent into implementation-ready context, the **Builder** owns implementation, and the **Reviewer** independently judges the resulting change. These are roles, not necessarily separate tools or agents; the process scales with risk.
+
+> The Strategist advises. The Human owns intent.
+>
+> The Builder owns implementation, not intent.
+>
+> The Reviewer judges the result, not the implementation story.
 
 ## Status
 
@@ -54,6 +62,7 @@ The first real consumer is [Moura](https://github.com/hy0044/moura). The package
 
 ## Initial workflow
 
+- turn human intent into implementation-ready context at the depth justified by risk and ambiguity
 - route the task by Low / Medium / High risk
 - keep one primary implementation context while continuity is useful
 - run relevant automated verification and self-review
