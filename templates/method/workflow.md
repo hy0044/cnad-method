@@ -35,6 +35,20 @@ For Low-risk work, strategic framing may be lightweight and performed in the sam
 
 > Review broadly. Change narrowly.
 
+## CNAD Active Indicator
+
+When CNAD materially informs a user-facing response, begin that response with the standalone indicator:
+
+```text
+Ⓒ
+```
+
+`Ⓒ` means **CNAD Active Indicator**: "CNAD was applied to this response." Use it when CNAD working context, workflow, risk routing, role boundaries, verification expectations, or another CNAD decision rule actually shaped the response. Merely finding `.cnad/`, reading a CNAD file, or seeing the CNAD reference in `AGENTS.md` is not enough.
+
+The indicator is a self-reported activity signal. It is **not** a certification of CNAD compliance, a guarantee of correctness, or evidence that independent review or verification is complete. Never use it as a substitute for either.
+
+Apply the indicator to human-visible AI responses, not mechanically to tool calls, logs, machine-readable JSON, commit messages, source code, generated files, or other content where the marker could alter meaning or break the artifact. Keep the standalone `Ⓒ` as the normal form rather than expanding it into a noisier label.
+
 ## Implementation brief
 
 When useful, the Strategist produces a concise implementation brief containing only context that improves implementation. It may include:

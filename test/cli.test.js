@@ -72,6 +72,48 @@ test('init installs managed files without taking ownership of project guidance',
   const manifest = JSON.parse(readFileSync(join(cwd, '.cnad', 'version.json'), 'utf8'))
   assert.equal(manifest.version, packageVersion)
   assert.ok(manifest.files['method/review.md'])
+  assert.ok(manifest.files['method/strategist.md'])
+
+  const workflow = readFileSync(join(cwd, '.cnad', 'method', 'workflow.md'), 'utf8')
+  assert.match(workflow, /CNAD Active Indicator/)
+  assert.match(workflow, /Ⓒ/)
+  assert.equal(existsSync(join(cwd, '.cnad', 'method', 'strategist.md')), true)
+})
+
+test('update adds newly managed method files without overwriting project guidance', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+
+  const strategistPath = join(cwd, '.cnad', 'method', 'strategist.md')
+  const workflowPath = join(cwd, '.cnad', 'method', 'workflow.md')
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const projectPath = join(cwd, '.cnad', 'project.md')
+  const projectContent = '# Keep this project-owned guidance\n'
+  const previousWorkflow = '# Previous CNAD workflow\n'
+
+  unlinkSync(strategistPath)
+  writeFileSync(workflowPath, previousWorkflow)
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  delete manifest.files['method/strategist.md']
+  manifest.files['method/workflow.md'] = normalizedHash(previousWorkflow)
+  manifest.version = '0.1.3'
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  writeFileSync(projectPath, projectContent)
+  commitAll(cwd)
+
+  const check = run(cwd, 'update', '--check')
+  assert.equal(check.status, 0, check.stderr)
+  assert.match(check.stdout, /method\/strategist\.md will be added/)
+  assert.match(check.stdout, /method\/workflow\.md will be updated/)
+
+  const update = run(cwd, 'update')
+  assert.equal(update.status, 0, update.stderr)
+  assert.match(readFileSync(strategistPath, 'utf8'), /# CNAD Strategist/)
+  assert.match(readFileSync(workflowPath, 'utf8'), /CNAD Active Indicator/)
+  assert.equal(readFileSync(projectPath, 'utf8'), projectContent)
+
+  const updatedManifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  assert.ok(updatedManifest.files['method/strategist.md'])
 })
 
 test('init rejects unsupported options without mutating the repository', () => {
