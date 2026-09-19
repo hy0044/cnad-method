@@ -52,7 +52,7 @@ Omit sections that add no value. The brief is not mandatory.
 
 Pass the Builder the implementation-relevant context, not the entire strategic conversation.
 
-The Builder may discover information that invalidates the initial framing. When that happens, update the working context and escalate risk or return to the Human when the change would alter intent, scope, or a significant boundary.
+The Builder may discover information that invalidates the initial framing. When that happens, update the working context. If proceeding would require changing the Human's intent, return to the Human and obtain confirmation before continuing. Separately, route changes in risk, scope, or a significant boundary according to `risk-routing.md`, and escalate when required.
 
 ## Relationship to independent review
 
