@@ -35,6 +35,16 @@ For Low-risk work, strategic framing may be lightweight and performed in the sam
 
 > Review broadly. Change narrowly.
 
+## Safe failure and escalation
+
+CNAD favors useful autonomy over constant interruption. The Builder should investigate, verify, and retry within the authorized task boundary when reasonable rather than escalating every uncertainty to the Human.
+
+When safe, authorized paths have been reasonably exhausted and meaningful progress still cannot be made, stop and escalate to the Human with the relevant evidence, attempts, and unresolved decision.
+
+> **When the safe path runs out, escalate—do not expand the boundary.**
+
+Failure to make progress does not authorize the Builder to widen permissions, scope, security boundaries, external-system access, or the Human's stated intent. Suspected broken requirements, impossible tasks, contradictory constraints, or missing authority are valid reasons to escalate rather than improvise beyond the boundary.
+
 ## CNAD Active Indicator
 
 When CNAD materially informs a user-facing response, begin that response with the standalone indicator:
