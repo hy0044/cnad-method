@@ -35,3 +35,11 @@ Review focus:
 ## Escalation
 
 Initial risk is provisional. Independent review may return `ESCALATE_RISK` when implementation reveals broader impact or stronger risk than initially understood.
+
+Escalation also applies when an agent cannot make meaningful progress within the authorized task boundary. The agent should first use reasonable, safe investigation, verification, and retries so that ordinary uncertainty does not become constant Human interruption.
+
+When those paths are exhausted, or when continuing would require broader permissions, scope, security boundaries, external-system access, or assumptions about Human intent, stop and escalate with the evidence and unresolved decision.
+
+> **When the safe path runs out, escalate—do not expand the boundary.**
+
+Suspected broken requirements, impossible tasks, contradictory constraints, or missing authority are valid escalation conditions. Lack of progress is not permission to cross a boundary.
