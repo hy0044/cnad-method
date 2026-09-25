@@ -35,6 +35,19 @@ For Low-risk work, strategic framing may be lightweight and performed in the sam
 
 > Review broadly. Change narrowly.
 
+## Copy-safe Human handoff
+
+When the Builder returns an artifact intended for the Human to copy into another tool, agent, or system, copy/paste integrity is part of the handoff contract. This applies to artifacts such as Markdown, SQL, YAML, JSON, prompts, and Issue or PR bodies—not to ordinary conversational explanations.
+
+Treat explicit requests such as “ready to paste” or “summarize in Markdown” as copy-safe handoffs. Do the same when wording such as “put it together” clearly implies reuse elsewhere; do not ask the Human to confirm the format when the context already establishes that intent.
+
+- Return the artifact as one continuous copy-safe block when practical; do not needlessly split it across Markdown blocks.
+- Keep explanations, progress reports, and side comments outside the artifact.
+- Choose a wrapper that preserves the artifact's structure after copying. For example, when a Markdown artifact contains fenced code blocks, use an outer fence longer than any fence inside it.
+- Before handoff, verify that delimiters and fences match and that copying the complete artifact preserves its intended structure.
+
+> **If the Human carries the artifact, preserve it across the handoff.**
+
 ## Safe failure and escalation
 
 CNAD favors useful autonomy over constant interruption. The Builder should investigate, verify, and retry within the authorized task boundary when reasonable rather than escalating every uncertainty to the Human.
