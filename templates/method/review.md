@@ -39,8 +39,8 @@ When reviewing a GitHub Pull Request, an `APPROVE` verdict should, when possible
 - Add the reaction only after completing the Independent Review and reaching `APPROVE`.
 - The reaction supplements the Output contract; it does not replace the Independent Review, its recorded verdict, or a formal GitHub Approval.
 - Leave a review comment when the rationale, warnings, verification results, or non-blocking observations provide useful information for humans. When there is no useful additional information, do not create a redundant comment solely to accompany the reaction; continue to state `None` for empty finding sections in the review output.
-- Do not add the approval-signaling reaction for `REQUEST_CHANGES` or `ESCALATE_RISK`; report blocking findings or the risk escalation through the Output contract instead.
-- Treat the reaction as best-effort. If the GitHub API, permissions, or tooling does not allow it, the review can still complete successfully.
+- Do not add the approval-signaling reaction for `REQUEST_CHANGES` or `ESCALATE_RISK`. On re-review, if you previously added that reaction, remove it when possible so that it does not signal a stale approval; never remove another person's reaction. Report blocking findings or the risk escalation through the Output contract instead.
+- Treat adding or removing the reaction as best-effort. If the GitHub API, permissions, or tooling does not allow it, the review can still complete successfully.
 
 This signal is specific to GitHub Pull Requests. Independent Review in other environments remains complete through the Output contract without any equivalent reaction.
 
