@@ -35,6 +35,26 @@ For Low-risk work, strategic framing may be lightweight and performed in the sam
 
 > Review broadly. Change narrowly.
 
+## Concrete tool mapping example
+
+The following is one practical way to run the CNAD workflow with current tools. It is an example, not a required product configuration: **Strategist, Builder, and Reviewer name responsibilities and context boundaries, not products.**
+
+```mermaid
+flowchart TD
+    goal["Goal / discussion"] --> strategist["Strategist: ChatGPT<br/>requirements · strategy · risk · plan"]
+    strategist --> handoff["Human handoff<br/>selects / confirms implementation-relevant context"]
+    handoff --> builder["Builder: Codex<br/>implementation · tests · self-review<br/>one primary working context"]
+    builder --> pr["Pull request"]
+    pr --> reset["Human review handoff<br/>triggers review and resets implementation context"]
+    reset --> reviewer["Reviewer: Codex<br/>fresh context · independent judgment"]
+    reviewer --> verdict["APPROVE · REQUEST_CHANGES · ESCALATE_RISK"]
+    verdict --> gate["Human final gate"]
+```
+
+The Human controls both boundaries: what useful strategic context reaches the Builder, and where the implementation conversation is reset before review. The Builder keeps that selected context while implementing. The Reviewer receives the minimum useful review evidence, but does not inherit the Builder's conversation as its working context.
+
+Builder and Reviewer can therefore both use Codex. Independent review does not require a different AI model; it requires **fresh context and independent judgment**. The Human still owns intent and the final gate.
+
 ## Copy-safe Human handoff
 
 When the Builder returns an artifact intended for the Human to copy into another tool, agent, or system, copy/paste integrity is part of the handoff contract. This applies to artifacts such as Markdown, SQL, YAML, JSON, prompts, and Issue or PR bodies—not to ordinary conversational explanations.
