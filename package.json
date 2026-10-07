@@ -1,6 +1,6 @@
 {
   "name": "cnad-method",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Context-Native AI Development repository integration CLI",
   "license": "MIT",
   "type": "module",
