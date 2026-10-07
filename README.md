@@ -73,6 +73,14 @@ The first real consumer is [Moura](https://github.com/hy0044/moura). The package
 
 See the installed files under `.cnad/method/` for the repository-facing workflow.
 
+## CNAD Active Indicator
+
+When CNAD materially informs a user-facing AI response, the response begins with a standalone `Ⓒ1` through `Ⓒ5`. The integer is a self-assessment of adherence to the CNAD principles and steps applicable to that task, from insufficient application (1) to sufficient application (5). It does not score answer quality or confidence.
+
+Even `Ⓒ5` is a self-reported signal, not a certification of CNAD compliance, a correctness guarantee, or proof that Independent Review or verification is complete. Adherence depends on necessary and sufficient process for the task's risk, ambiguity, and impact; extra steps do not earn a higher score, and a simple Low-risk task can merit `Ⓒ5`.
+
+Omit the indicator when CNAD did not materially inform the response. The former bare `Ⓒ` is a legacy activity signal with no adherence rating. See [the workflow](templates/method/workflow.md#cnad-active-indicator) for all five levels and display rules.
+
 ## Releases
 
 Maintainer instructions for publishing releases to npm, including the one-time npm account, initial publication, and Trusted Publisher setup, are in [the release guide](docs/releasing.md).
