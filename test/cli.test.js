@@ -76,7 +76,10 @@ test('init installs managed files without taking ownership of project guidance',
 
   const workflow = readFileSync(join(cwd, '.cnad', 'method', 'workflow.md'), 'utf8')
   assert.match(workflow, /CNAD Active Indicator/)
-  assert.match(workflow, /Ⓒ/)
+  assert.equal(workflow, readFileSync(resolve('templates/method/workflow.md'), 'utf8'))
+  assert.match(workflow, /Ⓒ5\n\nResponse body/)
+  for (let level = 1; level <= 5; level++) assert.ok(workflow.includes(`- \`Ⓒ${level}\` —`))
+  assert.doesNotMatch(workflow, /Ⓒ0/)
   assert.equal(existsSync(join(cwd, '.cnad', 'method', 'strategist.md')), true)
 })
 
@@ -89,7 +92,7 @@ test('update adds newly managed method files without overwriting project guidanc
   const manifestPath = join(cwd, '.cnad', 'version.json')
   const projectPath = join(cwd, '.cnad', 'project.md')
   const projectContent = '# Keep this project-owned guidance\n'
-  const previousWorkflow = '# Previous CNAD workflow\n'
+  const previousWorkflow = '# Previous CNAD workflow\n\nⒸ\n'
 
   unlinkSync(strategistPath)
   writeFileSync(workflowPath, previousWorkflow)
@@ -109,7 +112,7 @@ test('update adds newly managed method files without overwriting project guidanc
   const update = run(cwd, 'update')
   assert.equal(update.status, 0, update.stderr)
   assert.match(readFileSync(strategistPath, 'utf8'), /# CNAD Strategist/)
-  assert.match(readFileSync(workflowPath, 'utf8'), /CNAD Active Indicator/)
+  assert.equal(readFileSync(workflowPath, 'utf8'), readFileSync(resolve('templates/method/workflow.md'), 'utf8'))
   assert.equal(readFileSync(projectPath, 'utf8'), projectContent)
 
   const updatedManifest = JSON.parse(readFileSync(manifestPath, 'utf8'))

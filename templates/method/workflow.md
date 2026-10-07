@@ -86,17 +86,39 @@ Failure to make progress does not authorize the Builder to widen permissions, sc
 
 ## CNAD Active Indicator
 
-When CNAD materially informs a user-facing response, begin that response with the standalone indicator:
+When CNAD materially informs a user-facing response, begin that response with a standalone **CNAD Active Indicator**: `Ⓒ` immediately followed by one integer from 1 to 5. For example:
 
 ```text
-Ⓒ
+Ⓒ5
+
+Response body...
 ```
 
-`Ⓒ` means **CNAD Active Indicator**: "CNAD was applied to this response." Use it when CNAD working context, workflow, risk routing, role boundaries, verification expectations, or another CNAD decision rule actually shaped the response. Merely finding `.cnad/`, reading a CNAD file, or seeing the CNAD reference in `AGENTS.md` is not enough.
+`ⒸN` means "CNAD was applied to this response, with self-assessed adherence level N." Use it when CNAD working context, workflow, risk routing, role boundaries, verification expectations, or another CNAD decision rule actually shaped the response. Merely finding `.cnad/`, reading a CNAD file, or seeing the CNAD reference in `AGENTS.md` is not enough. When CNAD did not materially inform the response, omit the entire indicator; there is no zero level. Level 1 still requires material application, even if that application was insufficient.
 
-The indicator is a self-reported activity signal. It is **not** a certification of CNAD compliance, a guarantee of correctness, or evidence that independent review or verification is complete. Never use it as a substitute for either.
+The indicator is a **self-assessed CNAD adherence signal, not a certification**. Even `Ⓒ5` is not a third-party certification of full CNAD compliance, a guarantee of correctness, or evidence that Independent Review or verification is complete. Never use it as a substitute for either. The number does not score correctness, writing quality, user satisfaction, code quality, or AI confidence.
 
-Apply the indicator to human-visible AI responses, not mechanically to tool calls, logs, machine-readable JSON, commit messages, source code, generated files, or other content where the marker could alter meaning or break the artifact. Keep the standalone `Ⓒ` as the normal form rather than expanding it into a noisier label.
+### Adherence levels
+
+Assess how appropriately the AI followed the CNAD principles and steps applicable to this task and response:
+
+- `Ⓒ5` — Sufficiently followed the applicable CNAD principles and steps, appropriately handling required context boundaries, risk scaling, verification, and role responsibilities.
+- `Ⓒ4` — Mostly followed CNAD. Minor omissions, constraints, or room for improvement remain, but the major applicable principles are satisfied.
+- `Ⓒ3` — Materially applied CNAD, but could not satisfy some important applicable principles or steps, or has clear constraints on adherence.
+- `Ⓒ2` — Partially applied CNAD, with important parts insufficiently applied.
+- `Ⓒ1` — Consciously referenced and materially applied CNAD, but could not apply it sufficiently for this task.
+
+Judge necessary and sufficient application for the task's risk, ambiguity, and impact, not the number of steps performed. A simple Low-risk task can merit `Ⓒ5`; High risk does not automatically lower the score. Adding unnecessary Strategist work, artifacts, verification, or Independent Review does not raise adherence. Artifacts should exist only when they improve implementation, verification, traceability, or maintenance.
+
+Do not default mechanically to `Ⓒ5`. Assess important shortcomings honestly, including unread repository instructions, omitted required verification, assumed Human intent, inadequate context boundaries, lack of Builder/Reviewer independence, or skipped required Human gates. Recognizing and reporting a constraint, and taking the CNAD-required response to it, also count toward adherence: unavailable tools do not automatically require a deduction. Reporting an omission alone does not make an unmet requirement satisfied. Assess the response at its current workflow stage; do not imply that planned verification or review has already completed.
+
+### Lightweight display and compatibility
+
+Keep the standalone `ⒸN` as the normal form, without adding a label or an explanation of the score to every response. If the Human asks, explain the applicable principles, evidence, and shortcomings behind the self-assessment.
+
+The former bare `Ⓒ` indicated activity only. It remains understandable as a legacy activity signal, but supplies no adherence rating and must not be interpreted as `Ⓒ5`. New responses use `Ⓒ1` through `Ⓒ5` instead.
+
+Apply the indicator to human-visible AI responses, not mechanically to tool calls, logs, machine-readable JSON, commit messages, source code, generated files, or other content where the marker could alter meaning or break the artifact.
 
 ## Implementation brief
 
