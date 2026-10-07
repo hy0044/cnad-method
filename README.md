@@ -66,7 +66,8 @@ The first real consumer is [Moura](https://github.com/hy0044/moura). The package
 - route the task by Low / Medium / High risk
 - keep one primary implementation context while continuity is useful
 - run relevant automated verification and self-review
-- perform independent review for every code change
+- optionally use a pre-PR Independent Review as an early quality gate, fixing and re-verifying Blocking / in-scope findings
+- perform independent review of every completed code change; in GitHub PR workflows, review the completed PR from fresh context after creation even when pre-PR review has run
 - scale review depth and human approval with risk
 - review broadly, change narrowly
 

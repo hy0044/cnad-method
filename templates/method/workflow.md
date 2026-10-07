@@ -26,8 +26,12 @@ CNAD separates three responsibilities. They are roles, not necessarily separate 
 3. Produce an implementation brief when it improves implementation. Do not create one merely because the template exists.
 4. The Builder implements with one primary working context when continuity remains useful.
 5. Run relevant automated checks and self-review.
-6. Perform an independent review for every code change.
+6. Perform an independent review of the completed change for every code change. In a GitHub Pull Request workflow, create the PR before this review and reset review context to judge the completed PR diff.
 7. Apply additional verification and human approval when the risk requires it.
+
+During implementation or before PR creation, the Builder may also use a separate Reviewer with fresh context for an optional **pre-PR quality gate**. Apply Blocking / in-scope fixes and re-run relevant verification before proceeding to commit, push, and PR creation; follow existing scope discipline and risk escalation rules.
+
+Pre-PR Independent Review and PR Independent Review are separate review boundaries. A pre-PR `APPROVE` does not complete or replace the Independent Review after PR creation. Reset context for that review even when pre-PR review has already run. If PR review requires changes, the Builder fixes and verifies them within scope, then returns the updated PR for re-review before the Human final gate. See `review.md` for review evidence, verdicts, and completion signals. Without GitHub PRs, review the completed change through the same independent judgment boundary and Output contract.
 
 For Low-risk work, strategic framing may be lightweight and performed in the same working context as implementation. Medium- and High-risk work benefit more strongly from an explicit Strategist step. High-risk work should make the proposed intent, boundaries, and verification expectations visible to the Human before substantial implementation begins.
 
@@ -46,7 +50,7 @@ flowchart TD
     handoff --> builder["Builder: Codex<br/>implementation · tests · self-review<br/>one primary working context"]
     builder --> pr["Pull request"]
     pr --> reset["Human review handoff<br/>triggers review and resets implementation context"]
-    reset --> reviewer["Reviewer: Codex<br/>fresh context · independent judgment"]
+    reset --> reviewer["PR Reviewer: Codex<br/>fresh context · independent judgment"]
     reviewer --> verdict["APPROVE · REQUEST_CHANGES · ESCALATE_RISK"]
     verdict --> gate["Human final gate"]
 ```
@@ -54,6 +58,8 @@ flowchart TD
 The Human controls both boundaries: what useful strategic context reaches the Builder, and where the implementation conversation is reset before review. The Builder keeps that selected context while implementing. The Reviewer receives the minimum useful review evidence, but does not inherit the Builder's conversation as its working context.
 
 Builder and Reviewer can therefore both use Codex. Independent review does not require a different AI model; it requires **fresh context and independent judgment**. The Human still owns intent and the final gate.
+
+The optional pre-PR quality gate may occur before the Pull Request in this example; the PR review boundary still follows PR creation.
 
 ## Copy-safe Human handoff
 
