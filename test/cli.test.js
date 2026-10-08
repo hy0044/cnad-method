@@ -68,11 +68,14 @@ test('init installs managed files without taking ownership of project guidance',
 
   const project = readFileSync(join(cwd, '.cnad', 'project.md'), 'utf8')
   assert.match(project, /project-owned/)
+  assert.match(project, /Role, Surface, Agent \/ Product, Boundary, and Gate/)
+  assert.match(project, /Human → Strategist/)
 
   const manifest = JSON.parse(readFileSync(join(cwd, '.cnad', 'version.json'), 'utf8'))
   assert.equal(manifest.version, packageVersion)
   assert.ok(manifest.files['method/review.md'])
   assert.ok(manifest.files['method/strategist.md'])
+  assert.ok(Object.keys(manifest.files).every((path) => path.startsWith('method/')))
 
   const workflow = readFileSync(join(cwd, '.cnad', 'method', 'workflow.md'), 'utf8')
   assert.match(workflow, /CNAD Active Indicator/)
@@ -117,6 +120,71 @@ test('update adds newly managed method files without overwriting project guidanc
 
   const updatedManifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
   assert.ok(updatedManifest.files['method/strategist.md'])
+})
+
+test('init and a pending update preserve project-owned full, partial, and legacy guidance byte-for-byte', () => {
+  const workflow = readFileSync(resolve('templates/method/workflow.md'), 'utf8')
+  const example = workflow.match(/```markdown\n([\s\S]*?)\n```/)[1]
+  const variants = [
+    example.replace(/\n/g, '\r\n'),
+    '## Role mapping\n\nBuilder: local terminal / project-selected agent.\n',
+    '# Existing project constraints\n\nKeep the public API stable.\n',
+  ]
+
+  for (const guidance of variants) {
+    const cwd = tempRepo()
+    const projectPath = join(cwd, '.cnad', 'project.md')
+    mkdirSync(join(cwd, '.cnad'))
+    const before = Buffer.from(guidance)
+    writeFileSync(projectPath, before)
+    assert.equal(run(cwd, 'init').status, 0)
+    assert.deepEqual(readFileSync(projectPath), before)
+
+    const workflowPath = join(cwd, '.cnad', 'method', 'workflow.md')
+    const oldWorkflow = '# Previous workflow\n'
+    writeFileSync(workflowPath, oldWorkflow)
+    const manifestPath = join(cwd, '.cnad', 'version.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    manifest.files['method/workflow.md'] = normalizedHash(oldWorkflow)
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    commitAll(cwd)
+    // Project-owned guidance need not be committed or parsed before an update.
+    const edited = Buffer.concat([before, Buffer.from('\nLocal project note.\n')])
+    writeFileSync(projectPath, edited)
+
+    const check = run(cwd, 'update', '--check')
+    assert.equal(check.status, 0, check.stderr)
+    assert.deepEqual(readFileSync(projectPath), edited)
+    assert.equal(readFileSync(workflowPath, 'utf8'), oldWorkflow)
+    const update = run(cwd, 'update')
+    assert.equal(update.status, 0, update.stderr)
+    assert.deepEqual(readFileSync(projectPath), edited)
+    assert.equal(readFileSync(workflowPath, 'utf8'), workflow)
+
+    const updated = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    assert.ok(Object.keys(updated.files).every((path) => path.startsWith('method/')))
+    for (const [path, hash] of Object.entries(updated.files)) {
+      assert.equal(hash, normalizedHash(readFileSync(join(cwd, '.cnad', path), 'utf8')))
+    }
+  }
+})
+
+test('update works without project guidance and does not recreate it', () => {
+  const cwd = tempRepo()
+  assert.equal(run(cwd, 'init').status, 0)
+  const projectPath = join(cwd, '.cnad', 'project.md')
+  unlinkSync(projectPath)
+  const manifestPath = join(cwd, '.cnad', 'version.json')
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  manifest.version = '0.0.0'
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+  commitAll(cwd)
+
+  for (const args of [['update', '--check'], ['update']]) {
+    const result = run(cwd, ...args)
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(existsSync(projectPath), false)
+  }
 })
 
 test('init rejects unsupported options without mutating the repository', () => {

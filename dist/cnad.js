@@ -269,7 +269,7 @@ function init() {
     }
     if (!existsSync(projectPath)) {
         assertSafeRepositoryPath(projectPath);
-        writeFileSync(projectPath, '# Project-specific CNAD guidance\n\nAdd repository-specific constraints here. This file is project-owned and is not overwritten by `cnad update`.\n');
+        writeFileSync(projectPath, '# Project-specific CNAD guidance\n\nAdd repository-specific constraints here. This file is project-owned and is not overwritten by `cnad update`.\n\nOptionally declare Role, Surface, Agent / Product, Boundary, and Gate assignments here as ordinary Markdown. See `.cnad/method/workflow.md` for a copy-safe example, including Human → Strategist and the Human final gate. Without a mapping, follow the default CNAD flow; partial mappings retain all method review and approval requirements. The CLI does not parse or execute this guidance.\n');
     }
     writeManifest(entries);
     const agents = appendAgentsIntegration();

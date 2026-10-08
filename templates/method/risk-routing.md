@@ -2,6 +2,8 @@
 
 Risk assessment is initial routing, not a scoring exercise. Classify by the strongest relevant signal.
 
+Project-owned role, surface, agent, boundary, and gate mappings in `.cnad/project.md` supplement this routing. Product or surface choice does not determine risk or waive risk-required Human approval. Absent or partial mappings retain the rules below; resolve any conflicting gate with the Human before proceeding.
+
 ## Low
 
 Strategic framing may be lightweight and may remain in the Builder's working context. A separate Strategist context is optional unless ambiguity or uncertainty makes it useful.

@@ -20,6 +20,8 @@ GitHub PRs are not required for CNAD. In other environments, independently judge
 
 ## Minimum review context
 
+When `.cnad/project.md` declares role, surface, agent, boundary, or gate assignments, use the relevant assignments to identify the review handoff. A shared product or surface does not establish independence: each pre-PR and completed-PR review starts from its own fresh context. Missing or partial mappings retain these review requirements; project mappings cannot carry an earlier APPROVE across the PR boundary or replace the Human final gate.
+
 Normally provide only the smallest useful evidence set:
 
 - goal / requested behavior and relevant acceptance criteria
