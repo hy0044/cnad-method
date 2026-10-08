@@ -48,6 +48,14 @@ Core ownership rule:
 
 > **CNAD-owned files can be upgraded automatically. Project-owned files must never be silently overwritten.**
 
+### Project-specific role and boundary mapping
+
+Declare the project's **Role**, **Surface**, **Agent / Product**, **Boundary**, and **Gate** assignments as ordinary Markdown in the existing project-owned `.cnad/project.md`. See the [copy-safe five-stage example and guidance](templates/method/workflow.md#project-specific-role-and-boundary-mapping): Human → Strategist, Human-mediated Strategist → Builder, optional pre-PR Reviewer, fresh completed-PR Reviewer, and Reviewer → Human final gate.
+
+The mapping is declarative guidance for people and agents; the CLI does not parse it, launch agents, or switch environments. Product names in the example are replaceable, and the same product does not imply the same working context. CNAD's responsibilities, independent review boundaries, and risk-required Human approvals remain tool-independent.
+
+Without a mapping, continue the existing CNAD flow. Partial mappings specify only the assignments written down: omitted products and surfaces remain unspecified, while omitted roles and boundaries retain CNAD's requirements. `init` preserves existing project guidance; `update` (including `--check`) never overwrites or recreates `.cnad/project.md`. Existing installations can add the example manually; no migration or new configuration file is required.
+
 ### v0.1 update-safety guarantee
 
 `cnad update` assumes an ordinary Git-managed working tree. The repository must be a Git repository, and existing CNAD-managed files, including `.cnad/version.json`, must be tracked and have no uncommitted changes detectable by normal Git diff semantics. Under those conditions, ordinary local modifications are rejected before an update.
